@@ -83,7 +83,25 @@ export default function MapView({
   const mapRef = useRef<MapRef>(null);
   const [hoveredCheckpointId, setHoveredCheckpointId] = useState<string | null>(null);
 
-  const token = import.meta.env.VITE_MAPBOX_TOKEN || '';
+  const token = import.meta.env.VITE_MAPBOX_TOKEN;
+
+  if (!token) {
+    return (
+      <div
+        className="map-wrap"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'var(--red)',
+          fontSize: 14,
+          fontWeight: 600
+        }}
+      >
+        Mapbox token missing
+      </div>
+    );
+  }
 
   const segmentCollection = useMemo(() => {
     if (!routeGeometry) {
