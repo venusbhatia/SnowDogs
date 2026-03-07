@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import express, { type NextFunction, type Request, type Response } from 'express';
 
 import cameraRouter from './routes/camera';
+import reportsRouter from './routes/reports';
 import roadRouter from './routes/road';
 import routeRouter from './routes/route';
 import voiceRouter from './routes/voice';
@@ -46,6 +47,7 @@ app.use('/api/weather', weatherRouter);
 app.use('/api/road', roadRouter);
 app.use('/api/camera', cameraRouter);
 app.use('/api/voice', voiceRouter);
+app.use('/api/reports', reportsRouter);
 
 app.get('/api/health', (_req, res) => {
   res.json({
