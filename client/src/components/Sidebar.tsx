@@ -1,3 +1,4 @@
+import { useAuth0 } from '@auth0/auth0-react';
 import { useMemo, useState } from 'react';
 
 import type { EnrichedCheckpoint } from '../types';
@@ -91,6 +92,7 @@ export default function Sidebar({
   onSearch,
   onCheckpointSelect
 }: Props) {
+  const { isAuthenticated, user, loginWithRedirect, logout } = useAuth0();
   const [originCity, setOriginCity] = useState<string>(CITIES[0].value);
   const [destinationCity, setDestinationCity] = useState<string>(CITIES[1].value);
   const [departureTime, setDepartureTime] = useState<string>(tomorrowAt6am());
@@ -125,6 +127,86 @@ export default function Sidebar({
         lineHeight: 1.35
       }}
     >
+      <section
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          paddingBottom: 12,
+          borderBottom: '1px solid rgba(255,255,255,0.08)'
+        }}
+      >
+        {!isAuthenticated ? (
+          <button
+            type="button"
+            onClick={() => loginWithRedirect()}
+            style={{
+              border: '1px solid transparent',
+              borderRadius: 'var(--radius)',
+              background: 'var(--accent)',
+              color: '#fff',
+              fontWeight: 700,
+              fontSize: 12,
+              padding: '8px 12px',
+              cursor: 'pointer'
+            }}
+          >
+            Sign In
+          </button>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+              {user?.picture ? (
+                <img
+                  src={user.picture}
+                  alt={user.name || 'User'}
+                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: 'var(--bg-hover)',
+                    border: '1px solid var(--border)'
+                  }}
+                />
+              )}
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                {user?.name || 'Authenticated User'}
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                fontSize: 11,
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: 0
+              }}
+            >
+              Logout
+            </button>
+          </>
+        )}
+      </section>
+
       <header style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 21, lineHeight: 1 }}>🐕</span>
