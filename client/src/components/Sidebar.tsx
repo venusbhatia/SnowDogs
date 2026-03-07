@@ -146,7 +146,7 @@ export default function Sidebar({
             </span>
             <small>
               {cp.forecast
-                ? `${cp.forecast.temperature_2m ?? '-'}C, snow ${cp.forecast.snowfall ?? '-'} cm/h, vis ${cp.forecast.visibility ?? '-'} m`
+                ? `${cp.forecast.temperature ?? '-'}C, snow ${cp.forecast.snowfall ?? '-'} cm/h, vis ${cp.forecast.visibility ?? '-'} m`
                 : 'No forecast'}
             </small>
           </button>

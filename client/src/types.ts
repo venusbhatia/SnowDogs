@@ -1,7 +1,7 @@
-import type { CameraAnalysis, WeatherResponse } from './utils/api';
+import type { CameraAnalysis, WeatherCheckpoint } from './utils/api';
 import type { SampledCheckpoint } from './utils/sampling';
 
-export type ForecastPoint = NonNullable<WeatherResponse['checkpoints'][number]['forecast']>;
+export type ForecastPoint = NonNullable<WeatherCheckpoint['weather']>;
 
 export type EnrichedCheckpoint = SampledCheckpoint & {
   id: string;

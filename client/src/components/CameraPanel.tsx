@@ -52,8 +52,8 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
         eta: checkpoint.etaTimestamp,
         snowfall: checkpoint.forecast?.snowfall ?? 0,
         visibility: checkpoint.forecast?.visibility ?? 0,
-        windSpeed: checkpoint.forecast?.wind_speed_10m ?? 0,
-        temperature: checkpoint.forecast?.temperature_2m ?? 0,
+        windSpeed: checkpoint.forecast?.windSpeed ?? 0,
+        temperature: checkpoint.forecast?.temperature ?? 0,
         roadSurface: analysis?.road_surface ?? 'unknown',
         riskScore: checkpoint.riskScore
       });
@@ -85,7 +85,7 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
       <div className="weather-grid">
         <div>
           <span>Temp</span>
-          <strong>{checkpoint.forecast?.temperature_2m ?? '-'}C</strong>
+          <strong>{checkpoint.forecast?.temperature ?? '-'}C</strong>
         </div>
         <div>
           <span>Snowfall</span>
@@ -97,7 +97,7 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
         </div>
         <div>
           <span>Wind</span>
-          <strong>{checkpoint.forecast?.wind_speed_10m ?? '-'} km/h</strong>
+          <strong>{checkpoint.forecast?.windSpeed ?? '-'} km/h</strong>
         </div>
       </div>
 

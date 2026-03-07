@@ -34,9 +34,9 @@ function computeRiskScore(checkpoint: EnrichedCheckpoint['forecast']): number {
 
   const snowfall = checkpoint.snowfall ?? 0;
   const visibility = checkpoint.visibility ?? Number.POSITIVE_INFINITY;
-  const wind = checkpoint.wind_speed_10m ?? 0;
-  const temp = checkpoint.temperature_2m ?? Number.NaN;
-  const wmo = checkpoint.weather_code ?? Number.NaN;
+  const wind = checkpoint.windSpeed ?? 0;
+  const temp = checkpoint.temperature ?? Number.NaN;
+  const wmo = checkpoint.weatherCode ?? Number.NaN;
 
   if (snowfall > 2) {
     score += 3;
@@ -111,7 +111,7 @@ export default function App() {
       );
 
       const enriched: EnrichedCheckpoint[] = sampled.map((point, index) => {
-        const forecast = weather.checkpoints[index]?.forecast ?? null;
+        const forecast = weather[index]?.weather ?? null;
         const score = computeRiskScore(forecast);
 
         return {
@@ -126,8 +126,8 @@ export default function App() {
 
       setRouteGeo(route.geometry);
       setRouteStats({
-        distanceKm: route.distanceKm,
-        durationHrs: route.durationHrs
+        distanceKm: Number(route.distanceKm),
+        durationHrs: Number(route.durationHrs)
       });
       setCheckpoints(enriched);
     } catch (searchError) {

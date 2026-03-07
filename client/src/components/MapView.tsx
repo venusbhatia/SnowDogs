@@ -163,10 +163,10 @@ export default function MapView({ routeGeo, checkpoints, selectedCheckpointId, o
               <strong>{hoveredCheckpoint.riskLabel} Risk</strong>
               <div>{hoveredCheckpoint.distanceKm.toFixed(0)} km marker</div>
               <div>ETA: {hoveredCheckpoint.etaLocal}</div>
-              <div>Temp: {hoveredCheckpoint.forecast?.temperature_2m ?? '-'}C</div>
+              <div>Temp: {hoveredCheckpoint.forecast?.temperature ?? '-'}C</div>
               <div>Snowfall: {hoveredCheckpoint.forecast?.snowfall ?? '-'} cm/h</div>
               <div>Visibility: {hoveredCheckpoint.forecast?.visibility ?? '-'} m</div>
-              <div>Wind: {hoveredCheckpoint.forecast?.wind_speed_10m ?? '-'} km/h</div>
+              <div>Wind: {hoveredCheckpoint.forecast?.windSpeed ?? '-'} km/h</div>
             </div>
           </Popup>
         )}
