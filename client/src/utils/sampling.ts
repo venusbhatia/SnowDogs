@@ -1,11 +1,7 @@
 import along from '@turf/along';
 import { lineString } from '@turf/helpers';
 import length from '@turf/length';
-
-export type LineStringGeometry = {
-  type: 'LineString';
-  coordinates: [number, number][];
-};
+import type { LineString } from 'geojson';
 
 export type SampledCheckpoint = {
   lat: number;
@@ -18,25 +14,22 @@ export type SampledCheckpoint = {
 function formatEtaLocal(timestamp: Date): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Toronto',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    hour12: false
+    hour12: true
   }).format(timestamp);
 }
 
 export function sampleRoute(
-  geometry: LineStringGeometry,
-  departureTime: string | number | Date,
+  geometry: LineString,
+  departureTime: Date,
   intervalKm = 50,
   baseSpeedKmh = 95
 ): SampledCheckpoint[] {
   const routeFeature = lineString(geometry.coordinates);
   const totalDistanceKm = length(routeFeature, { units: 'kilometers' });
   const stepKm = Math.max(1, intervalKm);
-  const departMs = new Date(departureTime).getTime();
+  const departMs = departureTime.getTime();
 
   if (!Number.isFinite(departMs) || totalDistanceKm <= 0) {
     return [];
@@ -72,7 +65,7 @@ export function sampleRoute(
 }
 
 export function riskColor(score: number): 'green' | 'yellow' | 'orange' | 'red' {
-  if (score < 0.25) {
+  if (score < 0.3) {
     return 'green';
   }
   if (score < 0.5) {
@@ -84,15 +77,27 @@ export function riskColor(score: number): 'green' | 'yellow' | 'orange' | 'red' 
   return 'red';
 }
 
-export function riskLabel(score: number): 'Low' | 'Moderate' | 'High' | 'Severe' {
-  if (score < 0.25) {
-    return 'Low';
+export function riskLabel(score: number): 'Clear' | 'Caution' | 'Hazardous' | 'Dangerous' {
+  if (score < 0.3) {
+    return 'Clear';
   }
   if (score < 0.5) {
-    return 'Moderate';
+    return 'Caution';
   }
-  if (score < 0.75) {
-    return 'High';
+  if (score < 0.7) {
+    return 'Hazardous';
   }
-  return 'Severe';
+  return 'Dangerous';
+}
+
+export function formatDuration(hours: number): string {
+  if (!Number.isFinite(hours) || hours < 0) {
+    return '0h 0m';
+  }
+
+  const totalMinutes = Math.round(hours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+
+  return `${h}h ${m}m`;
 }

@@ -96,7 +96,7 @@ export default function App() {
       setSelectedCheckpoint(null);
 
       const route = await fetchRoute(origin, destination);
-      const sampled = sampleRoute(route.geometry, departureTime, 50, 95);
+      const sampled = sampleRoute(route.geometry, new Date(departureTime), 50, 95);
 
       if (sampled.length === 0) {
         throw new Error('Route sampling returned no checkpoints');
