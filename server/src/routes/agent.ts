@@ -1,5 +1,7 @@
 import { Router, type Request } from 'express';
 
+import { recallCorridorHistory, storeDriverReport, storeRouteBriefing } from '../utils/backboard';
+
 type InputReport = {
   text: string;
   source: string;
@@ -177,6 +179,21 @@ function isRouteSummary(value: unknown): value is RouteSummary {
     typeof summary.distanceKm === 'number' &&
     typeof summary.durationHrs === 'number'
   );
+}
+
+function slugify(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+}
+
+function buildCorridorKey(origin: string, destination: string): string {
+  const from = slugify(origin) || 'unknown-origin';
+  const to = slugify(destination) || 'unknown-destination';
+  return `corridor:${from}-${to}`;
 }
 
 function stripJsonFences(text: string): string {
@@ -480,7 +497,7 @@ async function assessCredibility(
 
 async function executeTool(
   call: GeminiFunctionCall,
-  context: { baseUrl: string }
+  context: { baseUrl: string; corridor: string }
 ): Promise<{ name: string; content: unknown }> {
   const name = call.name || 'unknown_tool';
   const args = (call.args && typeof call.args === 'object' ? call.args : {}) as Record<
@@ -527,6 +544,14 @@ async function executeTool(
         throw new Error('report_text is required');
       }
       const content = await assessCredibility(reportText, officialData, weatherSummary);
+
+      if (content && typeof content === 'object') {
+        const credibility = asNumber((content as { credibility?: unknown }).credibility);
+        if (credibility !== null && credibility > 0.5) {
+          await storeDriverReport(context.corridor, reportText, credibility);
+        }
+      }
+
       return { name, content };
     }
 
@@ -570,7 +595,13 @@ router.post('/analyze-route', async (req, res) => {
     const reports = reportsRaw;
     const checkpoints = checkpointsRaw;
     const routeSummary = routeSummaryRaw;
+    const corridor = buildCorridorKey(routeSummary.origin, routeSummary.destination);
     const baseUrl = getServerBaseUrl(req);
+    const history = await recallCorridorHistory(corridor);
+
+    const memoryPrefix = history
+      ? `HISTORICAL MEMORY: The following is what you remember from past analyses of this corridor: ${history}\n\n`
+      : '';
 
     const conversation: GeminiContent[] = [
       {
@@ -578,6 +609,7 @@ router.post('/analyze-route', async (req, res) => {
         parts: [
           {
             text:
+              memoryPrefix +
               'Analyze this winter route context. Use tools when needed to geocode locations, verify against official 511 data, and evaluate report credibility.\n\n' +
               JSON.stringify(
                 {
@@ -623,7 +655,7 @@ router.post('/analyze-route', async (req, res) => {
 
       const toolResponseParts: GeminiPart[] = [];
       for (const call of functionCalls) {
-        const toolResult = await executeTool(call, { baseUrl });
+        const toolResult = await executeTool(call, { baseUrl, corridor });
         toolResponseParts.push({
           functionResponse: {
             name: toolResult.name,
@@ -676,6 +708,7 @@ router.post('/analyze-route', async (req, res) => {
 
     const finalText = getGeminiText(finalResponse);
     const briefing = parseJsonFromText(finalText);
+    await storeRouteBriefing(corridor, (briefing || {}) as object);
     return res.json(briefing);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Agent analysis failed';
