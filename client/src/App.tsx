@@ -373,7 +373,7 @@ export default function App() {
           selectedCheckpointId={selectedCheckpoint?.id ?? null}
           onCheckpointClick={setSelectedCheckpoint}
         />
-        <RiskTimeline checkpoints={checkpoints} />
+        <RiskTimeline checkpoints={checkpoints} onCheckpointSelect={setSelectedCheckpoint} />
       </main>
 
       {selectedCheckpoint && (
