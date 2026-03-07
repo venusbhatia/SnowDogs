@@ -368,10 +368,10 @@ export default function App() {
 
       <main className="app-map-area" style={{ flex: 1, position: 'relative' }}>
         <MapView
-          routeGeo={routeGeo}
+          routeGeometry={routeGeo}
           checkpoints={checkpoints}
           selectedCheckpointId={selectedCheckpoint?.id ?? null}
-          onSelectCheckpoint={setSelectedCheckpoint}
+          onCheckpointClick={setSelectedCheckpoint}
         />
         <RiskTimeline checkpoints={checkpoints} />
       </main>

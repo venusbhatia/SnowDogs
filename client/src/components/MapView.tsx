@@ -1,60 +1,72 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Feature, FeatureCollection, LineString } from 'geojson';
 import Map, { Layer, Marker, NavigationControl, Popup, Source, type MapRef } from 'react-map-gl';
 
 import type { EnrichedCheckpoint, RouteGeometry } from '../types';
+import { riskColor } from '../utils/sampling';
 
 type Props = {
-  routeGeo: RouteGeometry | null;
+  routeGeometry: RouteGeometry | null;
   checkpoints: EnrichedCheckpoint[];
   selectedCheckpointId: string | null;
-  onSelectCheckpoint: (checkpoint: EnrichedCheckpoint) => void;
+  onCheckpointClick: (checkpoint: EnrichedCheckpoint) => void;
 };
 
-function colorHex(color: EnrichedCheckpoint['riskColor']): string {
-  if (color === 'green') {
+function riskToHex(score: number): string {
+  const level = riskColor(score);
+  if (level === 'green') {
     return '#22c55e';
   }
-  if (color === 'yellow') {
+  if (level === 'yellow') {
     return '#eab308';
   }
-  if (color === 'orange') {
+  if (level === 'orange') {
     return '#f97316';
   }
   return '#ef4444';
 }
 
-function splitSegments(route: RouteGeometry, checkpoints: EnrichedCheckpoint[]) {
-  const coords = route.coordinates;
-  if (coords.length < 2 || checkpoints.length < 2) {
+function buildSegmentCollection(
+  routeGeometry: RouteGeometry,
+  checkpoints: EnrichedCheckpoint[]
+): FeatureCollection<LineString, { color: string; id: string }> {
+  const coordinates = routeGeometry.coordinates;
+
+  if (coordinates.length < 2 || checkpoints.length < 2) {
     return {
       type: 'FeatureCollection',
       features: []
     };
   }
 
-  const lastIndex = coords.length - 1;
   const maxDistance = checkpoints[checkpoints.length - 1]?.distanceKm || 1;
+  const lastCoordIndex = coordinates.length - 1;
 
-  const features = checkpoints.slice(0, -1).map((cp, index) => {
-    const next = checkpoints[index + 1];
-    const startRatio = cp.distanceKm / maxDistance;
-    const endRatio = next.distanceKm / maxDistance;
-    const startIdx = Math.floor(startRatio * lastIndex);
-    const endIdx = Math.max(startIdx + 1, Math.floor(endRatio * lastIndex));
-    const segCoords = coords.slice(startIdx, endIdx + 1);
+  const features: Array<Feature<LineString, { color: string; id: string }>> = checkpoints
+    .slice(0, -1)
+    .map((checkpoint, idx) => {
+      const next = checkpoints[idx + 1];
+      const startRatio = Math.max(0, Math.min(1, checkpoint.distanceKm / maxDistance));
+      const endRatio = Math.max(0, Math.min(1, next.distanceKm / maxDistance));
 
-    return {
-      type: 'Feature',
-      geometry: {
-        type: 'LineString',
-        coordinates: segCoords.length >= 2 ? segCoords : [coords[startIdx], coords[endIdx]]
-      },
-      properties: {
-        id: `${cp.id}-${next.id}`,
-        color: colorHex(next.riskColor)
-      }
-    };
-  });
+      const startIdx = Math.floor(startRatio * lastCoordIndex);
+      const endIdx = Math.max(startIdx + 1, Math.floor(endRatio * lastCoordIndex));
+
+      const segment = coordinates.slice(startIdx, endIdx + 1);
+      const lineCoords = segment.length >= 2 ? segment : [coordinates[startIdx], coordinates[endIdx]];
+
+      return {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: lineCoords
+        },
+        properties: {
+          id: `${checkpoint.id}-${next.id}`,
+          color: riskToHex(next.riskScore)
+        }
+      };
+    });
 
   return {
     type: 'FeatureCollection',
@@ -62,23 +74,33 @@ function splitSegments(route: RouteGeometry, checkpoints: EnrichedCheckpoint[]) 
   };
 }
 
-export default function MapView({ routeGeo, checkpoints, selectedCheckpointId, onSelectCheckpoint }: Props) {
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+export default function MapView({
+  routeGeometry,
+  checkpoints,
+  selectedCheckpointId,
+  onCheckpointClick
+}: Props) {
   const mapRef = useRef<MapRef>(null);
+  const [hoveredCheckpointId, setHoveredCheckpointId] = useState<string | null>(null);
 
-  const token = import.meta.env.VITE_MAPBOX_TOKEN || import.meta.env.MAPBOX_TOKEN || '';
+  const token = import.meta.env.VITE_MAPBOX_TOKEN || '';
 
-  const segmentGeoJson = useMemo(() => {
-    if (!routeGeo) {
-      return { type: 'FeatureCollection', features: [] };
+  const segmentCollection = useMemo(() => {
+    if (!routeGeometry) {
+      return {
+        type: 'FeatureCollection',
+        features: []
+      } as FeatureCollection<LineString, { color: string; id: string }>;
     }
-    return splitSegments(routeGeo, checkpoints);
-  }, [routeGeo, checkpoints]);
 
-  const hoveredCheckpoint = checkpoints.find((cp) => cp.id === hoveredId) ?? null;
+    return buildSegmentCollection(routeGeometry, checkpoints);
+  }, [routeGeometry, checkpoints]);
+
+  const hoveredCheckpoint =
+    checkpoints.find((checkpoint) => checkpoint.id === hoveredCheckpointId) ?? null;
 
   useEffect(() => {
-    if (!mapRef.current || !routeGeo || routeGeo.coordinates.length === 0) {
+    if (!mapRef.current || !routeGeometry || routeGeometry.coordinates.length === 0) {
       return;
     }
 
@@ -87,7 +109,7 @@ export default function MapView({ routeGeo, checkpoints, selectedCheckpointId, o
     let maxLng = Number.NEGATIVE_INFINITY;
     let maxLat = Number.NEGATIVE_INFINITY;
 
-    for (const [lng, lat] of routeGeo.coordinates) {
+    for (const [lng, lat] of routeGeometry.coordinates) {
       minLng = Math.min(minLng, lng);
       minLat = Math.min(minLat, lat);
       maxLng = Math.max(maxLng, lng);
@@ -99,52 +121,92 @@ export default function MapView({ routeGeo, checkpoints, selectedCheckpointId, o
         [minLng, minLat],
         [maxLng, maxLat]
       ],
-      { padding: 80, duration: 800 }
+      {
+        padding: 80,
+        duration: 1500
+      }
     );
-  }, [routeGeo]);
+  }, [routeGeometry]);
 
   return (
     <div className="map-wrap">
       <Map
         ref={mapRef}
-        initialViewState={{ longitude: -84.5, latitude: 47, zoom: 4.7 }}
         mapboxAccessToken={token}
         mapStyle="mapbox://styles/mapbox/dark-v11"
+        initialViewState={{ latitude: 47, longitude: -84.5, zoom: 5.2 }}
       >
         <NavigationControl position="top-right" />
 
-        {routeGeo && checkpoints.length > 1 && (
-          <Source id="route-segments" type="geojson" data={segmentGeoJson as never}>
+        {routeGeometry && checkpoints.length > 1 && (
+          <Source id="route-risk-segments" type="geojson" data={segmentCollection}>
             <Layer
-              id="route-segments-layer"
+              id="route-glow"
+              type="line"
+              paint={{
+                'line-color': ['get', 'color'],
+                'line-width': 14,
+                'line-opacity': 0.15,
+                'line-blur': 8
+              }}
+              layout={{
+                'line-cap': 'round',
+                'line-join': 'round'
+              }}
+            />
+
+            <Layer
+              id="route-main"
               type="line"
               paint={{
                 'line-color': ['get', 'color'],
                 'line-width': 5,
                 'line-opacity': 0.9
               }}
+              layout={{
+                'line-cap': 'round',
+                'line-join': 'round'
+              }}
             />
           </Source>
         )}
 
-        {checkpoints.map((cp) => {
-          const isHovered = hoveredId === cp.id;
-          const isSelected = selectedCheckpointId === cp.id;
+        {checkpoints.map((checkpoint) => {
+          const isHovered = hoveredCheckpointId === checkpoint.id;
+          const isSelected = selectedCheckpointId === checkpoint.id;
+          const riskHex = riskToHex(checkpoint.riskScore);
+          const markerSize = checkpoint.riskScore >= 0.5 ? 16 : 10;
 
           return (
-            <Marker key={cp.id} longitude={cp.lng} latitude={cp.lat} anchor="center">
+            <Marker
+              key={checkpoint.id}
+              longitude={checkpoint.lng}
+              latitude={checkpoint.lat}
+              anchor="center"
+            >
               <button
                 type="button"
-                className="marker-dot"
+                onClick={() => onCheckpointClick(checkpoint)}
+                onMouseEnter={() => setHoveredCheckpointId(checkpoint.id)}
+                onMouseLeave={() =>
+                  setHoveredCheckpointId((current) =>
+                    current === checkpoint.id ? null : current
+                  )
+                }
+                aria-label={`Checkpoint at ${checkpoint.distanceKm.toFixed(0)} km`}
                 style={{
-                  backgroundColor: colorHex(cp.riskColor),
-                  transform: isHovered || isSelected ? 'scale(1.5)' : 'scale(1)',
-                  boxShadow: isSelected ? '0 0 0 2px #fff' : 'none'
+                  width: markerSize,
+                  height: markerSize,
+                  borderRadius: '50%',
+                  border: '2px solid #ffffff',
+                  background: riskHex,
+                  boxShadow: `0 0 12px 2px ${riskHex}`,
+                  transform: `scale(${isHovered ? 1.3 : 1})`,
+                  transition: 'transform 0.15s ease',
+                  cursor: 'pointer',
+                  padding: 0,
+                  outline: isSelected ? '2px solid #ffffff' : 'none'
                 }}
-                onMouseEnter={() => setHoveredId(cp.id)}
-                onMouseLeave={() => setHoveredId((prev) => (prev === cp.id ? null : prev))}
-                onClick={() => onSelectCheckpoint(cp)}
-                aria-label={`Checkpoint ${cp.distanceKm.toFixed(0)} km`}
               />
             </Marker>
           );
@@ -156,14 +218,17 @@ export default function MapView({ routeGeo, checkpoints, selectedCheckpointId, o
             latitude={hoveredCheckpoint.lat}
             closeButton={false}
             closeOnClick={false}
-            offset={18}
-            onClose={() => setHoveredId(null)}
+            offset={16}
+            onClose={() => setHoveredCheckpointId(null)}
           >
-            <div>
-              <strong>{hoveredCheckpoint.riskLabel} Risk</strong>
-              <div>{hoveredCheckpoint.distanceKm.toFixed(0)} km marker</div>
+            <div style={{ minWidth: 210, fontSize: 12, display: 'grid', gap: 4 }}>
+              <strong>{hoveredCheckpoint.riskLabel}</strong>
+              <div>Distance: {hoveredCheckpoint.distanceKm.toFixed(1)} km</div>
               <div>ETA: {hoveredCheckpoint.etaLocal}</div>
-              <div>Temp: {hoveredCheckpoint.forecast?.temperature ?? '-'}C</div>
+              <div>
+                Temp: {hoveredCheckpoint.forecast?.temperature ?? '-'}C (feels like{' '}
+                {hoveredCheckpoint.forecast?.apparentTemp ?? '-'}C)
+              </div>
               <div>Snowfall: {hoveredCheckpoint.forecast?.snowfall ?? '-'} cm/h</div>
               <div>Visibility: {hoveredCheckpoint.forecast?.visibility ?? '-'} m</div>
               <div>Wind: {hoveredCheckpoint.forecast?.windSpeed ?? '-'} km/h</div>
