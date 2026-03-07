@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 
+import AgentPanel from './components/AgentPanel';
 import CameraPanel from './components/CameraPanel';
 import MapView from './components/MapView';
 import RiskTimeline from './components/RiskTimeline';
@@ -22,6 +23,12 @@ type RouteInfo = {
   durationHrs: number;
   distanceM: number;
   durationS: number;
+};
+
+type RiskUpdate = {
+  lat: number;
+  lng: number;
+  newRisk: number;
 };
 
 const PRESET_LOCATIONS: Record<string, LngLat> = {
@@ -282,11 +289,33 @@ function getNearestRoadSurface(lat: number, lng: number, rows: unknown[]): strin
   return nearest?.surface ?? null;
 }
 
+function findNearestRiskUpdate(checkpoint: EnrichedCheckpoint, updates: RiskUpdate[]): RiskUpdate | null {
+  let nearest: { update: RiskUpdate; distanceKm: number } | null = null;
+
+  for (const update of updates) {
+    if (!Number.isFinite(update.lat) || !Number.isFinite(update.lng) || !Number.isFinite(update.newRisk)) {
+      continue;
+    }
+
+    const distanceKm = haversineKm(checkpoint.lat, checkpoint.lng, update.lat, update.lng);
+    if (!nearest || distanceKm < nearest.distanceKm) {
+      nearest = { update, distanceKm };
+    }
+  }
+
+  if (!nearest || nearest.distanceKm > 40) {
+    return null;
+  }
+
+  return nearest.update;
+}
+
 export default function App() {
   const [routeGeo, setRouteGeo] = useState<RouteGeometry | null>(null);
   const [checkpoints, setCheckpoints] = useState<EnrichedCheckpoint[]>([]);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<EnrichedCheckpoint | null>(null);
+  const [agentPanelOpen, setAgentPanelOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -310,6 +339,7 @@ export default function App() {
       setCheckpoints([]);
       setRouteInfo(null);
       setSelectedCheckpoint(null);
+      setAgentPanelOpen(false);
 
       const route = await fetchRoute(origin, destination);
       const geometry = route.geometry;
@@ -371,6 +401,7 @@ export default function App() {
         distanceM: normalizedRoute.distanceM,
         durationS: normalizedRoute.durationS
       });
+      setAgentPanelOpen(enriched.length > 0);
     } catch (searchError) {
       const message = searchError instanceof Error ? searchError.message : 'Failed to scan route';
       setError(message);
@@ -392,19 +423,70 @@ export default function App() {
     setSelectedCheckpoint(updated);
   };
 
+  const onAgentRiskUpdate = (updates: RiskUpdate[]) => {
+    if (updates.length === 0) {
+      return;
+    }
+
+    setCheckpoints((prev) =>
+      prev.map((checkpoint) => {
+        const riskUpdate = findNearestRiskUpdate(checkpoint, updates);
+        if (!riskUpdate) {
+          return checkpoint;
+        }
+
+        const nextScore = Math.max(0, Math.min(1, riskUpdate.newRisk));
+        return {
+          ...checkpoint,
+          riskScore: nextScore,
+          riskColor: riskColor(nextScore),
+          riskLabel: riskLabel(nextScore)
+        };
+      })
+    );
+
+    setSelectedCheckpoint((prev) => {
+      if (!prev) {
+        return prev;
+      }
+
+      const riskUpdate = findNearestRiskUpdate(prev, updates);
+      if (!riskUpdate) {
+        return prev;
+      }
+
+      const nextScore = Math.max(0, Math.min(1, riskUpdate.newRisk));
+      return {
+        ...prev,
+        riskScore: nextScore,
+        riskColor: riskColor(nextScore),
+        riskLabel: riskLabel(nextScore)
+      };
+    });
+  };
+
   return (
     <div className="app-shell" style={{ display: 'flex', flexDirection: 'row', height: '100vh' }}>
       <aside className="app-sidebar">
-        <Sidebar
-          loading={loading}
-          error={error}
-          routeStats={routeInfo ? { distanceKm: routeInfo.distanceKm, durationHrs: routeInfo.durationHrs } : null}
-          riskZones={riskZones}
-          checkpoints={checkpoints}
-          onSearch={handleSidebarSearch}
-          onCheckpointSelect={setSelectedCheckpoint}
-          selectedCheckpointId={selectedCheckpoint?.id ?? null}
-        />
+        <>
+          <Sidebar
+            loading={loading}
+            error={error}
+            routeStats={routeInfo ? { distanceKm: routeInfo.distanceKm, durationHrs: routeInfo.durationHrs } : null}
+            riskZones={riskZones}
+            checkpoints={checkpoints}
+            onSearch={handleSidebarSearch}
+            onCheckpointSelect={setSelectedCheckpoint}
+            selectedCheckpointId={selectedCheckpoint?.id ?? null}
+          />
+          {agentPanelOpen && checkpoints.length > 0 && (
+            <AgentPanel
+              checkpoints={checkpoints}
+              routeInfo={routeInfo ? { distanceKm: routeInfo.distanceKm, durationHrs: routeInfo.durationHrs } : null}
+              onRiskUpdate={onAgentRiskUpdate}
+            />
+          )}
+        </>
       </aside>
 
       <main className="app-map-area" style={{ flex: 1, position: 'relative' }}>
