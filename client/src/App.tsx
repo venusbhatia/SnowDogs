@@ -5,104 +5,282 @@ import MapView from './components/MapView';
 import RiskTimeline from './components/RiskTimeline';
 import Sidebar from './components/Sidebar';
 import type { EnrichedCheckpoint, RouteGeometry } from './types';
-import { fetchRoute, fetchWeather } from './utils/api';
+import {
+  fetchNearbyCameras,
+  fetchRoadConditions,
+  fetchRoute,
+  fetchWeather,
+  type RouteResponse,
+  type WeatherCheckpoint
+} from './utils/api';
 import { riskColor, riskLabel, sampleRoute } from './utils/sampling';
 
 type LngLat = [number, number];
 
-type SearchPayload = {
-  origin: LngLat;
-  destination: LngLat;
-  departureTime: string;
-};
-
-type RouteStats = {
+type RouteInfo = {
   distanceKm: number;
   durationHrs: number;
+  distanceM: number;
+  durationS: number;
 };
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
+const PRESET_LOCATIONS: Record<string, LngLat> = {
+  'Thunder Bay': [-89.2477, 48.3809],
+  Toronto: [-79.3832, 43.6532],
+  Sudbury: [-81.0, 46.49],
+  'Sault Ste Marie': [-84.33, 46.52],
+  Barrie: [-79.69, 44.39]
+};
+
+function parseNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
 }
 
-function computeRiskScore(checkpoint: EnrichedCheckpoint['forecast']): number {
-  if (!checkpoint) {
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const earthRadiusKm = 6371;
+
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+  return earthRadiusKm * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function normalizeSurfaceText(value: unknown): string {
+  if (typeof value === 'string') {
+    return value.toLowerCase();
+  }
+  return '';
+}
+
+function getRoadConditionSurface(entry: unknown): string | null {
+  if (!entry || typeof entry !== 'object') {
+    return null;
+  }
+
+  const row = entry as Record<string, unknown>;
+  const candidates = [
+    row.road_surface,
+    row.surface,
+    row.condition,
+    row.description,
+    row.Condition,
+    row.Surface,
+    row.RoadCondition
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim() !== '') {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function getRowCoords(row: unknown): { lat: number; lng: number } | null {
+  if (!row || typeof row !== 'object') {
+    return null;
+  }
+
+  const record = row as Record<string, unknown>;
+  const lat =
+    parseNumber(record.lat) ??
+    parseNumber(record.latitude) ??
+    parseNumber(record.Latitude) ??
+    parseNumber(record.y) ??
+    parseNumber(record.Y);
+
+  const lng =
+    parseNumber(record.lng) ??
+    parseNumber(record.lon) ??
+    parseNumber(record.long) ??
+    parseNumber(record.longitude) ??
+    parseNumber(record.Longitude) ??
+    parseNumber(record.x) ??
+    parseNumber(record.X);
+
+  if (lat === null || lng === null) {
+    return null;
+  }
+
+  return { lat, lng };
+}
+
+function computeRiskScore(weather: WeatherCheckpoint['weather'], roadCondition: string | null): number {
+  if (!weather && !roadCondition) {
     return 0;
   }
 
   let score = 0;
 
-  const snowfall = checkpoint.snowfall ?? 0;
-  const visibility = checkpoint.visibility ?? Number.POSITIVE_INFINITY;
-  const wind = checkpoint.windSpeed ?? 0;
-  const temp = checkpoint.temperature ?? Number.NaN;
-  const wmo = checkpoint.weatherCode ?? Number.NaN;
+  if (weather) {
+    if ((weather.snowfall ?? 0) > 2) {
+      score += 3;
+    } else if ((weather.snowfall ?? 0) > 0.5) {
+      score += 1.5;
+    }
 
-  if (snowfall > 2) {
-    score += 3;
-  } else if (snowfall > 0.5) {
-    score += 1.5;
-  }
-
-  if (visibility < 500) {
-    score += 2;
-  } else if (visibility < 1000) {
-    score += 1;
-  }
-
-  if (wind > 50) {
-    score += 1.5;
-  } else if (wind > 40) {
-    score += 1;
-  }
-
-  if (!Number.isNaN(temp) && temp >= -8 && temp <= 0) {
-    score += 0.5;
-  }
-
-  if (!Number.isNaN(wmo)) {
-    if (wmo >= 66 && wmo <= 67) {
+    if ((weather.visibility ?? Number.POSITIVE_INFINITY) < 500) {
       score += 2;
-    } else if (wmo >= 71 && wmo <= 75) {
+    } else if ((weather.visibility ?? Number.POSITIVE_INFINITY) < 1000) {
       score += 1;
+    }
+
+    const wind = Math.max(weather.windSpeed ?? 0, weather.windGusts ?? 0);
+    if (wind > 50) {
+      score += 1.5;
+    } else if (wind > 40) {
+      score += 1;
+    }
+
+    const temp = weather.temperature;
+    if (typeof temp === 'number' && temp <= 0 && temp >= -8) {
+      score += 0.5;
+    }
+
+    const wmo = weather.weatherCode;
+    if (typeof wmo === 'number') {
+      if (wmo >= 66 && wmo <= 67) {
+        score += 2;
+      } else if ((wmo >= 71 && wmo <= 75) || wmo === 77 || wmo === 85 || wmo === 86) {
+        score += 1;
+      }
+    }
+
+    if ((weather.precipProb ?? 0) > 80 && (weather.snowfall ?? 0) > 0) {
+      score += 0.5;
     }
   }
 
-  return clamp(score / 10, 0, 1);
+  const surface = normalizeSurfaceText(roadCondition);
+  if (surface.includes('ice')) {
+    score += 4;
+  } else if (surface.includes('snow packed') || surface.includes('snow covered')) {
+    score += 3;
+  } else if (surface.includes('partly snow covered')) {
+    score += 1.5;
+  } else if (surface.includes('wet')) {
+    score += 0.5;
+  }
+
+  return Math.min(score / 10, 1);
+}
+
+function extractCameraUrl(camera: unknown): string | null {
+  if (!camera || typeof camera !== 'object') {
+    return null;
+  }
+
+  const row = camera as Record<string, unknown>;
+  const urlCandidates = [row.url, row.imageUrl, row.cameraUrl, row.Url, row.CameraUrl, row.image, row.thumbnail];
+
+  for (const candidate of urlCandidates) {
+    if (typeof candidate === 'string' && candidate.trim() !== '') {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function getNearestCameraUrl(lat: number, lng: number, cameras: unknown[]): string | null {
+  let nearest: { distance: number; url: string } | null = null;
+
+  for (const camera of cameras) {
+    const url = extractCameraUrl(camera);
+    if (!url) {
+      continue;
+    }
+
+    const coords = getRowCoords(camera);
+    if (!coords) {
+      if (!nearest) {
+        nearest = { distance: Number.POSITIVE_INFINITY, url };
+      }
+      continue;
+    }
+
+    const distance = haversineKm(lat, lng, coords.lat, coords.lng);
+    if (!nearest || distance < nearest.distance) {
+      nearest = { distance, url };
+    }
+  }
+
+  return nearest?.url ?? null;
+}
+
+function getNearestRoadSurface(lat: number, lng: number, rows: unknown[]): string | null {
+  let nearest: { distance: number; surface: string } | null = null;
+
+  for (const row of rows) {
+    const surface = getRoadConditionSurface(row);
+    if (!surface) {
+      continue;
+    }
+
+    const coords = getRowCoords(row);
+    if (!coords) {
+      continue;
+    }
+
+    const distance = haversineKm(lat, lng, coords.lat, coords.lng);
+    if (!nearest || distance < nearest.distance) {
+      nearest = { distance, surface };
+    }
+  }
+
+  return nearest?.surface ?? null;
 }
 
 export default function App() {
   const [routeGeo, setRouteGeo] = useState<RouteGeometry | null>(null);
   const [checkpoints, setCheckpoints] = useState<EnrichedCheckpoint[]>([]);
+  const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
   const [selectedCheckpoint, setSelectedCheckpoint] = useState<EnrichedCheckpoint | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [routeStats, setRouteStats] = useState<RouteStats | null>(null);
 
-  const riskZones = useMemo(() => {
-    return checkpoints.reduce(
-      (acc, cp) => {
-        acc[cp.riskColor] += 1;
-        return acc;
-      },
-      { green: 0, yellow: 0, orange: 0, red: 0 }
-    );
-  }, [checkpoints]);
+  const riskZones = useMemo(
+    () =>
+      checkpoints.reduce(
+        (acc, cp) => {
+          acc[cp.riskColor] += 1;
+          return acc;
+        },
+        { green: 0, yellow: 0, orange: 0, red: 0 }
+      ),
+    [checkpoints]
+  );
 
-  const handleSearch = async ({ origin, destination, departureTime }: SearchPayload) => {
+  const handleSearch = async (origin: LngLat, destination: LngLat, departureTime: string) => {
     try {
       setLoading(true);
       setError(null);
+      setRouteGeo(null);
+      setCheckpoints([]);
+      setRouteInfo(null);
       setSelectedCheckpoint(null);
 
       const route = await fetchRoute(origin, destination);
-      const sampled = sampleRoute(route.geometry, new Date(departureTime), 50, 95);
+      const geometry = route.geometry;
+      const sampled = sampleRoute(geometry, new Date(departureTime), 50, 95);
 
       if (sampled.length === 0) {
-        throw new Error('Route sampling returned no checkpoints');
+        throw new Error('No checkpoints generated from route geometry');
       }
 
-      const weather = await fetchWeather(
+      const weatherPoints = await fetchWeather(
         sampled.map((point) => ({
           lat: point.lat,
           lng: point.lng,
@@ -110,26 +288,48 @@ export default function App() {
         }))
       );
 
+      let roadConditions: unknown[] = [];
+      try {
+        roadConditions = await fetchRoadConditions();
+      } catch {
+        roadConditions = [];
+      }
+
+      const nearbyCamerasPerCheckpoint = await Promise.all(
+        sampled.map(async (point) => {
+          try {
+            return await fetchNearbyCameras(point.lat, point.lng, 20);
+          } catch {
+            return [] as unknown[];
+          }
+        })
+      );
+
       const enriched: EnrichedCheckpoint[] = sampled.map((point, index) => {
-        const forecast = weather[index]?.weather ?? null;
-        const score = computeRiskScore(forecast);
+        const weather = weatherPoints[index]?.weather ?? null;
+        const roadSurface = getNearestRoadSurface(point.lat, point.lng, roadConditions);
+        const score = computeRiskScore(weather, roadSurface);
 
         return {
           ...point,
           id: `${index}-${point.distanceKm}`,
-          forecast,
+          forecast: weather,
           riskScore: score,
           riskColor: riskColor(score),
-          riskLabel: riskLabel(score)
+          riskLabel: riskLabel(score),
+          cameraUrl: getNearestCameraUrl(point.lat, point.lng, nearbyCamerasPerCheckpoint[index] || [])
         };
       });
 
-      setRouteGeo(route.geometry);
-      setRouteStats({
-        distanceKm: Number(route.distanceKm),
-        durationHrs: Number(route.durationHrs)
-      });
+      const normalizedRoute: RouteResponse = route;
+      setRouteGeo(geometry);
       setCheckpoints(enriched);
+      setRouteInfo({
+        distanceKm: Number(normalizedRoute.distanceKm),
+        durationHrs: Number(normalizedRoute.durationHrs),
+        distanceM: normalizedRoute.distanceM,
+        durationS: normalizedRoute.durationS
+      });
     } catch (searchError) {
       const message = searchError instanceof Error ? searchError.message : 'Failed to scan route';
       setError(message);
@@ -138,27 +338,35 @@ export default function App() {
     }
   };
 
-  const updateCheckpoint = (checkpoint: EnrichedCheckpoint) => {
-    setCheckpoints((previous) => previous.map((cp) => (cp.id === checkpoint.id ? checkpoint : cp)));
-    setSelectedCheckpoint(checkpoint);
+  const handleSidebarSearch = async (payload: {
+    origin: LngLat;
+    destination: LngLat;
+    departureTime: string;
+  }) => {
+    await handleSearch(payload.origin, payload.destination, payload.departureTime);
+  };
+
+  const onCheckpointUpdate = (updated: EnrichedCheckpoint) => {
+    setCheckpoints((prev) => prev.map((cp) => (cp.id === updated.id ? updated : cp)));
+    setSelectedCheckpoint(updated);
   };
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" style={{ display: 'flex', flexDirection: 'row', height: '100vh' }}>
       <aside className="app-sidebar">
         <Sidebar
           loading={loading}
           error={error}
-          routeStats={routeStats}
+          routeStats={routeInfo ? { distanceKm: routeInfo.distanceKm, durationHrs: routeInfo.durationHrs } : null}
           riskZones={riskZones}
           checkpoints={checkpoints}
-          onSearch={handleSearch}
+          onSearch={handleSidebarSearch}
           onSelectCheckpoint={setSelectedCheckpoint}
           selectedCheckpointId={selectedCheckpoint?.id ?? null}
         />
       </aside>
 
-      <main className="app-map-area">
+      <main className="app-map-area" style={{ flex: 1, position: 'relative' }}>
         <MapView
           routeGeo={routeGeo}
           checkpoints={checkpoints}
@@ -173,10 +381,12 @@ export default function App() {
           <CameraPanel
             checkpoint={selectedCheckpoint}
             onClose={() => setSelectedCheckpoint(null)}
-            onCheckpointUpdate={updateCheckpoint}
+            onCheckpointUpdate={onCheckpointUpdate}
           />
         </aside>
       )}
     </div>
   );
 }
+
+export { PRESET_LOCATIONS };
