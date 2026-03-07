@@ -361,7 +361,7 @@ export default function App() {
           riskZones={riskZones}
           checkpoints={checkpoints}
           onSearch={handleSidebarSearch}
-          onSelectCheckpoint={setSelectedCheckpoint}
+          onCheckpointSelect={setSelectedCheckpoint}
           selectedCheckpointId={selectedCheckpoint?.id ?? null}
         />
       </aside>
