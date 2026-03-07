@@ -331,7 +331,7 @@ export default function AgentPanel({ checkpoints, routeInfo, onRiskUpdate }: Pro
   return (
     <div
       style={{
-        height: '100%',
+        height: 'auto',
         minWidth: 0,
         display: 'flex',
         flexDirection: 'column',
@@ -367,12 +367,13 @@ export default function AgentPanel({ checkpoints, routeInfo, onRiskUpdate }: Pro
             resize: 'vertical',
             minHeight: 92,
             color: 'var(--text-primary)',
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border)',
+            background: 'linear-gradient(180deg, rgba(74,158,255,0.08), rgba(74,158,255,0.03))',
+            border: '1px solid rgba(74,158,255,0.45)',
             borderRadius: 10,
-            padding: 10,
+            padding: 12,
             fontFamily: 'var(--font)',
-            fontSize: 13
+            fontSize: 13,
+            boxShadow: 'inset 0 0 0 1px rgba(74,158,255,0.08), 0 8px 20px rgba(0,0,0,0.18)'
           }}
         />
 
@@ -490,15 +491,17 @@ export default function AgentPanel({ checkpoints, routeInfo, onRiskUpdate }: Pro
           disabled={!canRunAgent}
           style={{
             border: '1px solid transparent',
-            borderRadius: 12,
-            padding: '13px 14px',
-            fontSize: 14,
-            fontWeight: 700,
+            borderRadius: 14,
+            padding: '15px 16px',
+            fontSize: 15,
+            fontWeight: 800,
             color: '#fff',
-            background: 'var(--accent)',
+            background: 'linear-gradient(135deg, #4a9eff 0%, #2f6dd6 55%, #5bb2ff 100%)',
             opacity: canRunAgent ? 1 : 0.65,
             cursor: canRunAgent ? 'pointer' : 'not-allowed',
-            transition: 'opacity 0.2s ease'
+            transition: 'opacity 0.2s ease, transform 0.2s ease',
+            boxShadow: '0 12px 28px rgba(32,95,187,0.38)',
+            letterSpacing: 0.2
           }}
         >
           {runLoading ? 'Running Agent...' : 'Run AI Agent Analysis'}

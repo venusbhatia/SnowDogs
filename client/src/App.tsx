@@ -480,11 +480,20 @@ export default function App() {
             selectedCheckpointId={selectedCheckpoint?.id ?? null}
           />
           {agentPanelOpen && checkpoints.length > 0 && (
-            <AgentPanel
-              checkpoints={checkpoints}
-              routeInfo={routeInfo ? { distanceKm: routeInfo.distanceKm, durationHrs: routeInfo.durationHrs } : null}
-              onRiskUpdate={onAgentRiskUpdate}
-            />
+            <>
+              <div
+                style={{
+                  height: 1,
+                  margin: '8px 16px',
+                  background: 'linear-gradient(90deg, transparent, var(--border), transparent)'
+                }}
+              />
+              <AgentPanel
+                checkpoints={checkpoints}
+                routeInfo={routeInfo ? { distanceKm: routeInfo.distanceKm, durationHrs: routeInfo.durationHrs } : null}
+                onRiskUpdate={onAgentRiskUpdate}
+              />
+            </>
           )}
         </>
       </aside>
