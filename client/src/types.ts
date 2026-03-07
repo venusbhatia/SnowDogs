@@ -10,6 +10,7 @@ export type EnrichedCheckpoint = SampledCheckpoint & {
   riskLabel: 'Clear' | 'Caution' | 'Hazardous' | 'Dangerous';
   forecast: ForecastPoint | null;
   cameraUrl?: string | null;
+  _cameraUrl?: string | null;
   cameraAnalysis?: CameraAnalysis;
 };
 
