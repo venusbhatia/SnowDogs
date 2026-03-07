@@ -10,17 +10,19 @@ const router = Router();
 router.post('/speak', async (req, res) => {
   const { text } = req.body as SpeakBody;
 
+  const rawApiKey = process.env.ELEVENLABS_API_KEY;
+  const apiKey = typeof rawApiKey === 'string' ? rawApiKey.trim() : '';
+
+  if (!apiKey || apiKey === 'fallback') {
+    return res.json({ fallback: true, text: req.body.text });
+  }
+
   if (typeof text !== 'string' || text.trim() === '') {
     return res.status(400).json({ error: 'Invalid payload. text must be a non-empty string.' });
   }
 
   if (text.length > 500) {
     return res.status(400).json({ error: 'Invalid payload. text must be under 500 characters.' });
-  }
-
-  const apiKey = process.env.ELEVENLABS_API_KEY;
-  if (!apiKey) {
-    return res.json({ fallback: true, text });
   }
 
   try {

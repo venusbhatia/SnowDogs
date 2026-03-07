@@ -39,18 +39,49 @@ function buildSegmentCollection(
     };
   }
 
-  const maxDistance = checkpoints[checkpoints.length - 1]?.distanceKm || 1;
   const lastCoordIndex = coordinates.length - 1;
+  
+  const checkpointCoordIndices: number[] = [];
+
+  for (let checkpointIndex = 0; checkpointIndex < checkpoints.length; checkpointIndex += 1) {
+    const checkpoint = checkpoints[checkpointIndex];
+    let closestIndex = 0;
+    let minDistanceSq = Number.POSITIVE_INFINITY;
+
+    for (let coordIndex = 0; coordIndex < coordinates.length; coordIndex += 1) {
+      const [coordLng, coordLat] = coordinates[coordIndex];
+      const deltaLng = coordLng - checkpoint.lng;
+      const deltaLat = coordLat - checkpoint.lat;
+      const distanceSq = deltaLng * deltaLng + deltaLat * deltaLat;
+
+      if (distanceSq < minDistanceSq) {
+        minDistanceSq = distanceSq;
+        closestIndex = coordIndex;
+      }
+    }
+
+    // Keep split points monotonic so segments remain in route order.
+    if (checkpointIndex > 0) {
+      checkpointCoordIndices.push(
+        Math.max(closestIndex, checkpointCoordIndices[checkpointIndex - 1] ?? 0)
+      );
+    } else {
+      checkpointCoordIndices.push(closestIndex);
+    }
+  }
 
   const features: Array<Feature<LineString, { color: string; id: string }>> = checkpoints
     .slice(0, -1)
     .map((checkpoint, idx) => {
       const next = checkpoints[idx + 1];
-      const startRatio = Math.max(0, Math.min(1, checkpoint.distanceKm / maxDistance));
-      const endRatio = Math.max(0, Math.min(1, next.distanceKm / maxDistance));
-
-      const startIdx = Math.floor(startRatio * lastCoordIndex);
-      const endIdx = Math.max(startIdx + 1, Math.floor(endRatio * lastCoordIndex));
+      const startIdx = Math.min(
+        Math.max(0, checkpointCoordIndices[idx] ?? 0),
+        lastCoordIndex
+      );
+      const endIdx = Math.min(
+        Math.max(startIdx + 1, checkpointCoordIndices[idx + 1] ?? startIdx + 1),
+        lastCoordIndex
+      );
 
       const segment = coordinates.slice(startIdx, endIdx + 1);
       const lineCoords = segment.length >= 2 ? segment : [coordinates[startIdx], coordinates[endIdx]];
@@ -88,8 +119,9 @@ export default function MapView({
   if (!token) {
     return (
       <div
-        className="map-wrap"
         style={{
+          width: '100%',
+          height: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -147,12 +179,18 @@ export default function MapView({
   }, [routeGeometry]);
 
   return (
-    <div className="map-wrap">
+    <div
+      style={{
+        width: '100%',
+        height: '100%'
+      }}
+    >
       <Map
         ref={mapRef}
         mapboxAccessToken={token}
         mapStyle="mapbox://styles/mapbox/dark-v11"
         initialViewState={{ latitude: 47, longitude: -84.5, zoom: 5.2 }}
+        style={{ width: '100%', height: '100%' }}
       >
         <NavigationControl position="top-right" />
 

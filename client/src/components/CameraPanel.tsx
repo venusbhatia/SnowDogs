@@ -62,23 +62,35 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
   );
 
   const runAnalysis = async () => {
-    if (!cameraUrl) {
-      return;
-    }
-
     try {
       setAnalyzing(true);
       setError(null);
 
-      if (analysisCache[cameraUrl]) {
-        setAnalysis(analysisCache[cameraUrl]);
+      if (cameraUrl) {
+        if (analysisCache[cameraUrl]) {
+          setAnalysis(analysisCache[cameraUrl]);
+          return;
+        }
+
+        const result = await analyzeCamera(cameraUrl);
+        setAnalysis(result);
+        setAnalysisCache((prev) => ({ ...prev, [cameraUrl]: result }));
+        onCheckpointUpdate({ ...checkpoint, cameraAnalysis: result });
         return;
       }
 
-      const result = await analyzeCamera(cameraUrl);
-      setAnalysis(result);
-      setAnalysisCache((prev) => ({ ...prev, [cameraUrl]: result }));
-      onCheckpointUpdate({ ...checkpoint, cameraAnalysis: result });
+      const advisoryResult = await generateAdvisory({
+        lat: checkpoint.lat,
+        lng: checkpoint.lng,
+        eta: checkpoint.etaTimestamp,
+        snowfall: weather?.snowfall ?? 0,
+        visibility: weather?.visibility ?? 0,
+        windSpeed: weather?.windSpeed ?? 0,
+        temperature: weather?.temperature ?? 0,
+        roadSurface: 'unknown',
+        riskScore: checkpoint.riskScore
+      });
+      setAdvisory(advisoryResult.advisory);
     } catch (analysisError) {
       const message = analysisError instanceof Error ? analysisError.message : 'Camera analysis failed';
       setError(message);
@@ -218,59 +230,11 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
         </div>
 
         {cameraUrl ? (
-          <>
-            <img
-              src={cameraUrl}
-              alt="Highway camera"
-              style={{ width: '100%', height: 170, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }}
-            />
-            <button
-              type="button"
-              onClick={runAnalysis}
-              disabled={analyzing}
-              style={{
-                border: '1px solid transparent',
-                borderRadius: 10,
-                background: 'var(--accent)',
-                color: '#fff',
-                padding: '10px 12px',
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: analyzing ? 'not-allowed' : 'pointer',
-                opacity: analyzing ? 0.8 : 1,
-                transition: 'all 0.2s ease'
-              }}
-            >
-              {analyzing ? 'Analyzing with Gemini...' : 'Analyze with AI'}
-            </button>
-
-            {analysis && (
-              <div style={{ display: 'grid', gap: 8, marginTop: 2 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Road Surface</span>
-                  <span
-                    style={{
-                      fontSize: 11,
-                      color: 'var(--text-primary)',
-                      background: 'var(--bg-hover)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 999,
-                      padding: '2px 8px'
-                    }}
-                  >
-                    {analysis.road_surface}
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  Visibility: <span style={{ color: 'var(--text-primary)' }}>{analysis.visibility}</span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  Snow Coverage: <span style={{ color: 'var(--text-primary)' }}>{analysis.snow_coverage_percent}%</span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>{analysis.summary}</div>
-              </div>
-            )}
-          </>
+          <img
+            src={cameraUrl}
+            alt="Highway camera"
+            style={{ width: '100%', height: 170, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }}
+          />
         ) : (
           <div
             style={{
@@ -282,6 +246,57 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
             }}
           >
             No nearby camera available for this checkpoint.
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={runAnalysis}
+          disabled={analyzing}
+          style={{
+            border: '1px solid transparent',
+            borderRadius: 10,
+            background: 'var(--accent)',
+            color: '#fff',
+            padding: '10px 12px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: analyzing ? 'not-allowed' : 'pointer',
+            opacity: analyzing ? 0.8 : 1,
+            transition: 'all 0.2s ease'
+          }}
+        >
+          {analyzing
+            ? 'Analyzing with Gemini...'
+            : cameraUrl
+              ? 'Analyze with AI'
+              : 'Analyze Weather with AI'}
+        </button>
+
+        {analysis && (
+          <div style={{ display: 'grid', gap: 8, marginTop: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Road Surface</span>
+              <span
+                style={{
+                  fontSize: 11,
+                  color: 'var(--text-primary)',
+                  background: 'var(--bg-hover)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 999,
+                  padding: '2px 8px'
+                }}
+              >
+                {analysis.road_surface}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Visibility: <span style={{ color: 'var(--text-primary)' }}>{analysis.visibility}</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Snow Coverage: <span style={{ color: 'var(--text-primary)' }}>{analysis.snow_coverage_percent}%</span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-primary)', lineHeight: 1.4 }}>{analysis.summary}</div>
           </div>
         )}
       </section>

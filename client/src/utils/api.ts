@@ -147,7 +147,13 @@ export async function fetchNearbyCameras(lat: number, lng: number, radius = 20):
     }
 
     const payload = (await response.json()) as { data?: any[] } | any[];
-    return Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
+    if (!Array.isArray(payload) && Array.isArray(payload.data)) {
+      return payload.data;
+    }
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+    return [];
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown nearby cameras fetch error';
     throw new Error(`Failed to fetch nearby cameras: ${message}`);
@@ -156,10 +162,13 @@ export async function fetchNearbyCameras(lat: number, lng: number, radius = 20):
 
 export async function analyzeCamera(imageUrl: string): Promise<CameraAnalysis> {
   try {
+    const normalizedImageUrl =
+      imageUrl.startsWith('/') ? `${window.location.origin}${imageUrl}` : imageUrl;
+
     const response = await fetch('/api/camera/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl })
+      body: JSON.stringify({ imageUrl: normalizedImageUrl })
     });
 
     if (!response.ok) {
@@ -215,6 +224,8 @@ export async function speakAlert(text: string): Promise<void> {
 
         await new Promise<void>((resolve, reject) => {
           const utterance = new SpeechSynthesisUtterance(payload.text || text);
+          utterance.rate = 0.9;
+          utterance.pitch = 1;
           utterance.onend = () => resolve();
           utterance.onerror = () => reject(new Error('Browser TTS playback failed'));
           window.speechSynthesis.speak(utterance);

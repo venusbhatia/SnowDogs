@@ -37,17 +37,131 @@ const router = Router();
 const ANALYZE_TTL_MS = 120_000;
 const analyzeCache = new Map<string, AnalyzeCacheEntry>();
 
+function toAbsoluteUrl(url: string, base: string): string {
+  try {
+    return new URL(url, base).toString();
+  } catch {
+    return url;
+  }
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function extractImageUrlFromHtml(html: string, pageUrl: string): string | null {
+  const ogImageMatch = html.match(
+    /<meta[^>]+(?:property|name)=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i
+  );
+  if (ogImageMatch?.[1]) {
+    return toAbsoluteUrl(decodeHtmlEntities(ogImageMatch[1]), pageUrl);
+  }
+
+  const imgMatches = html.matchAll(/<img[^>]+src=["']([^"']+\.(?:jpe?g)(?:\?[^"']*)?)["'][^>]*>/gi);
+  for (const match of imgMatches) {
+    if (match?.[1]) {
+      return toAbsoluteUrl(decodeHtmlEntities(match[1]), pageUrl);
+    }
+  }
+
+  return null;
+}
+
+async function fetchCameraImageBuffer(sourceUrl: string): Promise<Buffer> {
+  const proxyPathMatch = sourceUrl.match(/^\/api\/road\/camera-proxy\/([^/?#]+)/);
+  if (!proxyPathMatch?.[1]) {
+    const directResponse = await fetch(sourceUrl);
+    if (!directResponse.ok) {
+      throw new Error('Failed to fetch imageUrl');
+    }
+    return Buffer.from(await directResponse.arrayBuffer());
+  }
+
+  const viewId = proxyPathMatch[1];
+  const viewerUrl = `https://511on.ca/map/Cctv/${encodeURIComponent(viewId)}`;
+
+  const viewerResponse = await fetch(viewerUrl, {
+    headers: { Accept: 'image/*,text/html,*/*;q=0.8' }
+  });
+  if (!viewerResponse.ok) {
+    throw new Error('Failed to fetch Ontario 511 camera view');
+  }
+
+  const contentType = (viewerResponse.headers.get('content-type') || '').toLowerCase();
+  if (contentType.startsWith('image/')) {
+    return Buffer.from(await viewerResponse.arrayBuffer());
+  }
+
+  const html = await viewerResponse.text();
+  const extractedImageUrl = extractImageUrlFromHtml(html, viewerUrl);
+  if (!extractedImageUrl) {
+    throw new Error('Could not resolve camera image from Ontario 511');
+  }
+
+  const imageResponse = await fetch(extractedImageUrl, {
+    headers: { Accept: 'image/*,*/*;q=0.8' }
+  });
+  if (!imageResponse.ok) {
+    throw new Error('Failed to fetch resolved camera image');
+  }
+
+  return Buffer.from(await imageResponse.arrayBuffer());
+}
+
 function getGeminiText(data: GeminiResponse): string {
   const parts = data.candidates?.[0]?.content?.parts ?? [];
   return parts.map((part) => part.text ?? '').join('\n').trim();
 }
 
 function stripJsonFences(text: string): string {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenced?.[1]) {
-    return fenced[1].trim();
+  const completeFence = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (completeFence?.[1]) {
+    return completeFence[1].trim();
   }
+
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith('```json') || trimmed.startsWith('```')) {
+    const firstNewlineIndex = trimmed.indexOf('\n');
+    if (firstNewlineIndex !== -1) {
+      return trimmed.slice(firstNewlineIndex + 1).trim();
+    }
+
+    return trimmed
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .trim();
+  }
+
   return text.trim();
+}
+
+function tryParsePossiblyTruncatedJson(text: string): unknown {
+  const trimmed = text.trim();
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    const candidates = [
+      trimmed + '"}',
+      trimmed + '"]}',
+      trimmed + '"}]}',
+      trimmed + '"}}'
+    ];
+    for (const candidate of candidates) {
+      try {
+        return JSON.parse(candidate);
+      } catch {
+        // try next candidate
+      }
+    }
+
+    throw new Error('Unable to parse JSON');
+  }
 }
 
 function isValidCheckpoint(value: unknown): value is AdvisoryCheckpoint {
@@ -105,16 +219,11 @@ router.post('/analyze', async (req, res) => {
       return res.json(cached.data);
     }
 
-    const imageRes = await fetch(imageUrl);
-    if (!imageRes.ok) {
-      return res.status(400).json({ error: 'Failed to fetch imageUrl' });
-    }
-
-    const imageBuffer = Buffer.from(await imageRes.arrayBuffer());
+    const imageBuffer = await fetchCameraImageBuffer(imageUrl.trim());
     const imageBase64 = imageBuffer.toString('base64');
 
     const prompt =
-      "Analyze this Ontario highway camera image for winter driving conditions. Return ONLY valid JSON, no markdown fences: {road_surface: 'bare_dry'|'wet'|'partly_snow_covered'|'snow_covered'|'ice_covered', visibility: 'good'|'fair'|'poor', snow_coverage_percent: 0-100, active_precipitation: boolean, hazards: string[], summary: string}";
+      "You are an expert winter driving safety analyst examining an Ontario highway camera feed. Analyze this image in detail for winter driving conditions. Return ONLY valid JSON with these fields: road_surface (one of: bare_dry, wet, partly_snow_covered, snow_covered, ice_covered), visibility (one of: excellent, good, fair, poor, very_poor), snow_coverage_percent (0-100), active_precipitation (true/false), hazards (array of specific hazards you observe like 'black ice risk', 'snow drifts on shoulder', 'reduced lane markings visibility', 'slush accumulation'), summary (2-3 detailed sentences describing what you see, road condition, and specific safety advice for a driver approaching this area). Be thorough and specific in your analysis.";
 
     const geminiPayload = {
       contents: [
@@ -135,7 +244,7 @@ router.post('/analyze', async (req, res) => {
       ],
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: 300
+        maxOutputTokens: 2048
       }
     };
 
@@ -144,7 +253,7 @@ router.post('/analyze', async (req, res) => {
     const normalizedText = stripJsonFences(responseText);
 
     try {
-      const parsed = JSON.parse(normalizedText) as unknown;
+      const parsed = tryParsePossiblyTruncatedJson(normalizedText) as unknown;
       analyzeCache.set(imageUrl, {
         data: parsed,
         expiresAt: Date.now() + ANALYZE_TTL_MS

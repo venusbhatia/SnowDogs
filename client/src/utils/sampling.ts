@@ -27,26 +27,19 @@ export function sampleRoute(
   baseSpeedKmh = 95
 ): SampledCheckpoint[] {
   const routeFeature = lineString(geometry.coordinates);
-  const totalDistanceKm = length(routeFeature, { units: 'kilometers' });
+  const totalKm = length(routeFeature, { units: 'kilometers' });
   const stepKm = Math.max(1, intervalKm);
   const departMs = departureTime.getTime();
 
-  if (!Number.isFinite(departMs) || totalDistanceKm <= 0) {
+  if (!Number.isFinite(departMs) || totalKm <= 0) {
     return [];
   }
 
   const checkpoints: SampledCheckpoint[] = [];
-  const sampleDistances: number[] = [];
+  let lastDistanceKm = 0;
 
-  for (let km = 0; km <= totalDistanceKm; km += stepKm) {
-    sampleDistances.push(km);
-  }
-
-  if (sampleDistances[sampleDistances.length - 1] < totalDistanceKm) {
-    sampleDistances.push(totalDistanceKm);
-  }
-
-  for (const distanceKm of sampleDistances) {
+  for (let dist = 0; dist <= totalKm; dist += stepKm) {
+    const distanceKm = Math.min(dist, totalKm);
     const point = along(routeFeature, distanceKm, { units: 'kilometers' });
     const [lng, lat] = point.geometry.coordinates;
     const etaMs = departMs + (distanceKm / Math.max(baseSpeedKmh, 1)) * 3600_000;
@@ -56,6 +49,23 @@ export function sampleRoute(
       lat,
       lng,
       distanceKm: Number(distanceKm.toFixed(2)),
+      etaTimestamp: etaDate.toISOString(),
+      etaLocal: formatEtaLocal(etaDate)
+    });
+
+    lastDistanceKm = distanceKm;
+  }
+
+  if (lastDistanceKm < totalKm) {
+    const point = along(routeFeature, totalKm, { units: 'kilometers' });
+    const [lng, lat] = point.geometry.coordinates;
+    const etaMs = departMs + (totalKm / Math.max(baseSpeedKmh, 1)) * 3600_000;
+    const etaDate = new Date(etaMs);
+
+    checkpoints.push({
+      lat,
+      lng,
+      distanceKm: Number(totalKm.toFixed(2)),
       etaTimestamp: etaDate.toISOString(),
       etaLocal: formatEtaLocal(etaDate)
     });

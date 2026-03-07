@@ -183,7 +183,19 @@ function extractCameraUrl(camera: unknown): string | null {
   }
 
   const row = camera as Record<string, unknown>;
-  const urlCandidates = [row.url, row.imageUrl, row.cameraUrl, row.Url, row.CameraUrl, row.image, row.thumbnail];
+  const views = Array.isArray(row.Views) ? (row.Views as Array<Record<string, unknown>>) : [];
+  const firstView = views[0] || null;
+  const urlCandidates = [
+    firstView?.Url,
+    firstView?.url,
+    row.url,
+    row.imageUrl,
+    row.cameraUrl,
+    row.Url,
+    row.CameraUrl,
+    row.image,
+    row.thumbnail
+  ];
 
   for (const candidate of urlCandidates) {
     if (typeof candidate === 'string' && candidate.trim() !== '') {
@@ -194,26 +206,53 @@ function extractCameraUrl(camera: unknown): string | null {
   return null;
 }
 
+function extractCameraIdFromUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    if (segments.length === 0) {
+      return null;
+    }
+    return segments[segments.length - 1] || null;
+  } catch {
+    return null;
+  }
+}
+
+function toCameraProxyUrl(viewerUrl: string | null): string | null {
+  if (!viewerUrl) {
+    return null;
+  }
+
+  const viewId = extractCameraIdFromUrl(viewerUrl);
+  if (!viewId) {
+    return null;
+  }
+
+  return `/api/road/camera-proxy/${encodeURIComponent(viewId)}`;
+}
+
 function getNearestCameraUrl(lat: number, lng: number, cameras: unknown[]): string | null {
   let nearest: { distance: number; url: string } | null = null;
 
   for (const camera of cameras) {
-    const url = extractCameraUrl(camera);
-    if (!url) {
+    const viewerUrl = extractCameraUrl(camera);
+    const proxyUrl = toCameraProxyUrl(viewerUrl);
+    if (!proxyUrl) {
       continue;
     }
 
     const coords = getRowCoords(camera);
     if (!coords) {
       if (!nearest) {
-        nearest = { distance: Number.POSITIVE_INFINITY, url };
+        nearest = { distance: Number.POSITIVE_INFINITY, url: proxyUrl };
       }
       continue;
     }
 
     const distance = haversineKm(lat, lng, coords.lat, coords.lng);
     if (!nearest || distance < nearest.distance) {
-      nearest = { distance, url };
+      nearest = { distance, url: proxyUrl };
     }
   }
 
@@ -298,7 +337,7 @@ export default function App() {
       const nearbyCamerasPerCheckpoint = await Promise.all(
         sampled.map(async (point) => {
           try {
-            return await fetchNearbyCameras(point.lat, point.lng, 20);
+            return await fetchNearbyCameras(point.lat, point.lng, 100);
           } catch {
             return [] as unknown[];
           }
@@ -309,6 +348,7 @@ export default function App() {
         const weather = weatherPoints[index]?.weather ?? null;
         const roadSurface = getNearestRoadSurface(point.lat, point.lng, roadConditions);
         const score = computeRiskScore(weather, roadSurface);
+        const resolvedCameraUrl = getNearestCameraUrl(point.lat, point.lng, nearbyCamerasPerCheckpoint[index] || []);
 
         return {
           ...point,
@@ -317,7 +357,8 @@ export default function App() {
           riskScore: score,
           riskColor: riskColor(score),
           riskLabel: riskLabel(score),
-          cameraUrl: getNearestCameraUrl(point.lat, point.lng, nearbyCamerasPerCheckpoint[index] || [])
+          cameraUrl: resolvedCameraUrl,
+          _cameraUrl: resolvedCameraUrl
         };
       });
 

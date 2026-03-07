@@ -41,6 +41,7 @@ class ApiCache<T> {
 
 const conditionsCache = new ApiCache<unknown[]>(TTL_MS);
 const camerasCache = new ApiCache<unknown[]>(TTL_MS);
+const cameraImageCache = new Map<string, { expiresAt: number; imageUrl: string | null }>();
 
 function logRoadError(endpoint: string, error: unknown) {
   const timestamp = new Date().toISOString();
@@ -138,6 +139,41 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return earthRadiusKm * c;
 }
 
+function toAbsoluteUrl(url: string, base: string): string {
+  try {
+    return new URL(url, base).toString();
+  } catch {
+    return url;
+  }
+}
+
+function decodeHtmlEntities(value: string): string {
+  return value
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function extractImageUrlFromHtml(html: string, pageUrl: string): string | null {
+  const ogImageMatch = html.match(
+    /<meta[^>]+(?:property|name)=["']og:image["'][^>]*content=["']([^"']+)["'][^>]*>/i
+  );
+  if (ogImageMatch?.[1]) {
+    return toAbsoluteUrl(decodeHtmlEntities(ogImageMatch[1]), pageUrl);
+  }
+
+  const imgMatches = html.matchAll(/<img[^>]+src=["']([^"']+\.(?:jpe?g)(?:\?[^"']*)?)["'][^>]*>/gi);
+  for (const match of imgMatches) {
+    if (match?.[1]) {
+      return toAbsoluteUrl(decodeHtmlEntities(match[1]), pageUrl);
+    }
+  }
+
+  return null;
+}
+
 router.get('/conditions', async (_req, res) => {
   const result = await getWithFallback(
     'conditions',
@@ -209,6 +245,107 @@ router.get('/cameras/near', async (req, res) => {
     source: result.source,
     radiusKm
   });
+});
+
+router.get('/camera-image/:id', async (req, res) => {
+  const id = String(req.params.id || '').trim();
+  if (!id) {
+    return res.status(400).json({ imageUrl: null, error: 'Camera ID is required' });
+  }
+
+  const cached = cameraImageCache.get(id);
+  if (cached && cached.expiresAt > Date.now()) {
+    if (cached.imageUrl) {
+      return res.json({ imageUrl: cached.imageUrl });
+    }
+    return res.json({ imageUrl: null, error: 'Could not resolve image URL' });
+  }
+
+  const viewerUrl = `https://511on.ca/map/Cctv/${encodeURIComponent(id)}`;
+
+  try {
+    const pageResponse = await fetch(viewerUrl, {
+      headers: { Accept: 'text/html,application/xhtml+xml' }
+    });
+
+    if (pageResponse.ok) {
+      const contentType = (pageResponse.headers.get('content-type') || '').toLowerCase();
+
+      if (contentType.startsWith('image/')) {
+        const imageUrl = pageResponse.url || viewerUrl;
+        cameraImageCache.set(id, { imageUrl, expiresAt: Date.now() + TTL_MS });
+        return res.json({ imageUrl });
+      }
+
+      const html = await pageResponse.text();
+      const parsedImageUrl = extractImageUrlFromHtml(html, viewerUrl);
+      if (parsedImageUrl) {
+        cameraImageCache.set(id, { imageUrl: parsedImageUrl, expiresAt: Date.now() + TTL_MS });
+        return res.json({ imageUrl: parsedImageUrl });
+      }
+    }
+  } catch (error) {
+    logRoadError('camera-image/page', error);
+  }
+
+  try {
+    const imageFallback = await fetch(viewerUrl, {
+      headers: { Accept: 'image/*,*/*;q=0.8' }
+    });
+
+    const contentType = (imageFallback.headers.get('content-type') || '').toLowerCase();
+    if (imageFallback.ok && contentType.startsWith('image/')) {
+      const imageUrl = imageFallback.url || viewerUrl;
+      cameraImageCache.set(id, { imageUrl, expiresAt: Date.now() + TTL_MS });
+      return res.json({ imageUrl });
+    }
+  } catch (error) {
+    logRoadError('camera-image/fallback', error);
+  }
+
+  cameraImageCache.set(id, { imageUrl: null, expiresAt: Date.now() + TTL_MS });
+  return res.json({ imageUrl: null, error: 'Could not resolve image URL' });
+});
+
+router.get('/camera-proxy/:viewId', async (req, res) => {
+  const viewId = String(req.params.viewId || '').trim();
+  if (!viewId) {
+    return res.status(400).json({ error: 'viewId is required' });
+  }
+
+  const viewerUrl = `https://511on.ca/map/Cctv/${encodeURIComponent(viewId)}`;
+
+  try {
+    const upstream = await fetch(viewerUrl, {
+      headers: {
+        Accept: 'image/*,text/html,*/*;q=0.8'
+      }
+    });
+
+    if (!upstream.ok) {
+      logRoadError('camera-proxy/upstream', `status ${upstream.status} for viewId ${viewId}`);
+      return res.status(502).json({ imageUrl: null, error: 'Could not resolve image URL' });
+    }
+
+    const contentType = (upstream.headers.get('content-type') || '').toLowerCase();
+    if (contentType.startsWith('image/')) {
+      const bytes = Buffer.from(await upstream.arrayBuffer());
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      return res.send(bytes);
+    }
+
+    const html = await upstream.text();
+    const parsedImageUrl = extractImageUrlFromHtml(html, viewerUrl);
+    if (parsedImageUrl) {
+      return res.redirect(parsedImageUrl);
+    }
+
+    return res.json({ imageUrl: null, error: 'Could not resolve image URL' });
+  } catch (error) {
+    logRoadError('camera-proxy', error);
+    return res.status(500).json({ imageUrl: null, error: 'Could not resolve image URL' });
+  }
 });
 
 export default router;
