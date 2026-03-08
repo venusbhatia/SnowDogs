@@ -1,0 +1,24 @@
+node_modules/
+dist/
+build/
+.gradle/
+
+# Root-level local artifacts (screenshots/logs/dumps)
+/*.png
+/*.log
+/*.xml
+/current-emulator.png
+/dev-build-check.png
+/launch-check.png
+/metro-live.log
+/release-build.log
+/server-live.log
+
+# Exclude nested git repo for initial parent sync
+mobile-template/
+
+# Local scratch/test backups
+/*.bak_test
+/root-write-test*.txt
+/existing-test.txt
+/test.m3
