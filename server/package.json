@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "start": "npx tsx src/index.ts",
     "dev": "npx tsx watch src/index.ts"
   },
   "dependencies": {
+    "@cloudinary/analysis": "^0.4.2",
     "backboard-sdk": "^1.5.3",
+    "cloudinary": "^2.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.21.0",
