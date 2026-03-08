@@ -1,0 +1,19 @@
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL
+Starting project at C:\Users\kompe\OneDrive\Desktop\SnowDogs-main\mobile
+Starting Metro Bundler
+
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:8081
+Logs for your project will appear below.
+Android .\index.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android .\index.ts ▓▓▓▓▓▓▓░░░░░░░░░ 49.0% (114/168)
+Android .\index.ts ▓▓▓▓▓▓▓▓▓▓▓▓▓▓░░ 89.5% (616/651)
+Android .\index.ts ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (786/786)
+Android Bundled 10768ms index.ts (786 modules)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context
+Android .\index.ts ░░░░░░░░░░░░░░░░  0.0% (0/1)
+Android Bundled 462ms index.ts (1 module)
+ WARN  SafeAreaView has been deprecated and will be removed in a future release. Please use 'react-native-safe-area-context' instead. See https://github.com/AppAndFlow/react-native-safe-area-context
+ INFO  Launching DevTools...
+

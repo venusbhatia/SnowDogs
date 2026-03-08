@@ -1,6 +1,3 @@
 node_modules/
-.expo/
+node_modules/
 dist/
-.env
-.env.local
-web-build/

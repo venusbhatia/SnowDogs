@@ -1,41 +1,129 @@
-# SnowDogs Mobile
+# SnowDogs
 
-This Expo app adapts the uploaded SnowDogs web experience into a phone-first hackathon build.
+SnowDogs is a winter route intelligence project with three runnable surfaces:
 
-## Features
+- `server/`: Express API for routing, weather, road conditions, camera analysis, and voice alerts
+- `client/`: Vite + React desktop web app
+- `mobile/`: Expo React Native app for Android and iOS
 
-- route scan between preset Ontario cities
-- checkpoint sampling every 50 km
-- weather and road risk scoring
-- Ontario 511 nearby camera support
-- Gemini-powered camera analysis and advisories through the existing server
-- spoken advisory playback with Expo speech
+## Prerequisites
 
-## Setup
+- Node.js 20+
+- npm 10+
+- Expo Go on a device or an Android/iOS simulator for `mobile/`
 
-1. Start the backend from the repo root:
-   - `npm run server`
-2. Create `mobile/.env` from `mobile/.env.example`
-3. Set `EXPO_PUBLIC_API_BASE_URL`
-   - Android emulator: `http://10.0.2.2:3001`
-   - iOS simulator: `http://localhost:3001`
-   - Physical device: use your computer's LAN IP
-4. Install dependencies in `mobile/`
-5. Start Expo with `npm run start`
+## Environment
 
-## Android Studio Emulator
+Create these env files before running the app stack:
 
-1. Start an Android Virtual Device from Android Studio.
-2. Use a Google Play image and install Expo Go on the emulator if needed.
-3. From the repo root, run:
-   - `npm run server`
-   - `npm run mobile:android:studio`
+- `server/.env`
+- `client/.env`
+- `mobile/.env`
 
-If Expo cannot find the emulator, add Android SDK `platform-tools` to your `PATH` so `adb` is available in the terminal.
+Example values:
 
-## Notes
+```dotenv
+# server/.env
+PORT=3001
+MAPBOX_TOKEN=your_mapbox_token
+GEMINI_API_KEY=your_gemini_api_key
+ELEVENLABS_API_KEY=fallback
+```
 
-- The Expo app uses native maps instead of the web Mapbox client.
-- Spoken alerts use local Expo speech so the mobile app does not depend on browser audio playback.
-- Placeholder `MAPBOX_TOKEN` and `GEMINI_API_KEY` values now trigger demo fallbacks so the Android emulator flow is still testable.
-- Add real `MAPBOX_TOKEN` and `GEMINI_API_KEY` values in `server/.env` for live route and Gemini outputs.
+```dotenv
+# client/.env
+VITE_MAPBOX_TOKEN=your_mapbox_token
+```
+
+```dotenv
+# mobile/.env
+EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3001
+```
+
+Notes:
+
+- Use `http://localhost:3001` for iOS Simulator.
+- Use your machine's LAN IP for a physical device.
+- `ELEVENLABS_API_KEY=fallback` keeps the voice endpoint in browser-fallback mode if you do not want ElevenLabs enabled.
+
+## Install
+
+From the repo root:
+
+```bash
+npm run install:all
+```
+
+## Run The Web App
+
+Start the API:
+
+```bash
+npm run server
+```
+
+In a second terminal, start the web client:
+
+```bash
+npm run client
+```
+
+The Vite app runs on [http://localhost:5173](http://localhost:5173) and proxies `/api` to the backend on port `3001`.
+
+## Run The Mobile App
+
+Start the backend first:
+
+```bash
+npm run server
+```
+
+Then start Expo:
+
+```bash
+npm run mobile
+```
+
+Useful shortcuts:
+
+```bash
+npm run mobile:android
+npm run mobile:android:studio
+npm run mobile:ios
+npm run mobile:web
+npm run dev:android
+```
+
+## Android Studio Testing
+
+1. Open Android Studio and start an Android Virtual Device.
+2. Use a Google Play emulator image and install Expo Go if the emulator does not already have it.
+3. Keep `mobile/.env` set to:
+
+```dotenv
+EXPO_PUBLIC_API_BASE_URL=http://10.0.2.2:3001
+```
+
+4. Start the full Android test loop from the repo root:
+
+```bash
+npm run dev:android
+```
+
+If you prefer two terminals, run `npm run server` in one terminal and `npm run mobile:android:studio` in the other.
+
+Notes:
+
+- `adb` from the Android SDK must be on your `PATH` for Expo to open the emulator automatically.
+- The repo now falls back to demo route/advisory responses when `MAPBOX_TOKEN` or `GEMINI_API_KEY` are still placeholders, so the app remains testable in the emulator.
+- Add real API keys in `server/.env` to replace the demo fallbacks with live route and Gemini results.
+```
+
+## Verification
+
+Available local checks:
+
+```bash
+npm run build:client
+npm run typecheck:mobile
+```

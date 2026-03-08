@@ -1,0 +1,236 @@
+Starting a Gradle Daemon, 1 busy Daemon could not be reused, use --status for details
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:settings-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:processResources NO-SOURCE
+> Task :gradle-plugin:shared:processResources NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:classes UP-TO-DATE
+> Task :gradle-plugin:shared:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin-shared:jar UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:settings-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:settings-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-settings-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :gradle-plugin:react-native-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-module-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-module-gradle-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileKotlin UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:compileJava NO-SOURCE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:pluginDescriptors UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:processResources UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:classes UP-TO-DATE
+> Task :expo-gradle-plugin:expo-autolinking-plugin:jar UP-TO-DATE
+> Task :expo-gradle-plugin:expo-max-sdk-override-plugin:jar UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:compileJava NO-SOURCE
+> Task :gradle-plugin:react-native-gradle-plugin:pluginDescriptors UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:processResources UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:classes UP-TO-DATE
+> Task :gradle-plugin:react-native-gradle-plugin:jar UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileKotlin UP-TO-DATE
+> Task :expo-module-gradle-plugin:compileJava NO-SOURCE
+> Task :expo-module-gradle-plugin:classes UP-TO-DATE
+> Task :expo-module-gradle-plugin:jar UP-TO-DATE
+
+> Configure project :
+[32m[ExpoRootProject][0m Using the following versions:
+  - buildTools:  [32m36.0.0[0m
+  - minSdk:      [32m24[0m
+  - compileSdk:  [32m36[0m
+  - targetSdk:   [32m36[0m
+  - ndk:         [32m27.1.12297006[0m
+  - kotlin:      [32m2.1.20[0m
+  - ksp:         [32m2.1.20-2.0.1[0m
+
+> Configure project :app
+ ℹ️  [33mApplying gradle plugin[0m '[32mexpo-max-sdk-override-plugin[0m'
+  [expo-max-sdk-override-plugin] This plugin will find all permissions declared with `android:maxSdkVersion`. If there exists a declaration with the `android:maxSdkVersion` annotation and another one without, the plugin will remove the annotation from the final merged manifest. In order to see a log with the changes run a clean build of the app.
+
+> Configure project :expo
+
+Using expo modules
+  - [32mexpo-log-box[0m (55.0.7)
+  - [32mexpo-constants[0m (55.0.7)
+  - [32mexpo-modules-core[0m (55.0.14)
+  - [33m[📦][0m [32mexpo-dom-webview[0m (55.0.3)
+  - [33m[📦][0m [32mexpo-asset[0m (55.0.8)
+  - [33m[📦][0m [32mexpo-file-system[0m (55.0.10)
+  - [33m[📦][0m [32mexpo-font[0m (55.0.4)
+  - [33m[📦][0m [32mexpo-keep-awake[0m (55.0.4)
+  - [33m[📦][0m [32mexpo-speech[0m (55.0.8)
+
+
+> Task :expo-log-box:preBuild UP-TO-DATE
+> Task :expo-log-box:preReleaseBuild UP-TO-DATE
+> Task :expo-modules-core:preBuild UP-TO-DATE
+> Task :expo-modules-core:preReleaseBuild UP-TO-DATE
+> Task :react-native-maps:generateCodegenSchemaFromJavaScript SKIPPED
+> Task :expo:generatePackagesList UP-TO-DATE
+> Task :expo:preBuild UP-TO-DATE
+> Task :react-native-maps:generateCodegenArtifactsFromSchema SKIPPED
+> Task :react-native-maps:preBuild UP-TO-DATE
+> Task :react-native-maps:preReleaseBuild UP-TO-DATE
+> Task :expo-log-box:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo:preReleaseBuild UP-TO-DATE
+> Task :react-native-picker_picker:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :react-native-maps:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo-log-box:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-maps:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :react-native-community_datetimepicker:generateCodegenSchemaFromJavaScript UP-TO-DATE
+> Task :expo-log-box:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-picker_picker:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-picker_picker:preBuild UP-TO-DATE
+> Task :expo-log-box:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-picker_picker:preReleaseBuild UP-TO-DATE
+> Task :react-native-maps:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-maps:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo:mergeReleaseNativeLibs NO-SOURCE
+> Task :app:generateAutolinkingNewArchitectureFiles UP-TO-DATE
+> Task :expo:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :expo-log-box:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-maps:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-log-box:generateReleaseResValues UP-TO-DATE
+> Task :react-native-maps:generateReleaseResValues UP-TO-DATE
+> Task :react-native-picker_picker:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-community_datetimepicker:generateCodegenArtifactsFromSchema UP-TO-DATE
+> Task :react-native-community_datetimepicker:preBuild UP-TO-DATE
+> Task :expo:generateReleaseResValues UP-TO-DATE
+> Task :expo-log-box:generateReleaseResources UP-TO-DATE
+> Task :react-native-maps:generateReleaseResources UP-TO-DATE
+> Task :react-native-community_datetimepicker:preReleaseBuild UP-TO-DATE
+> Task :react-native-picker_picker:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo:generateReleaseResources UP-TO-DATE
+> Task :react-native-picker_picker:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-community_datetimepicker:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :app:generateAutolinkingPackageList UP-TO-DATE
+> Task :react-native-maps:packageReleaseResources UP-TO-DATE
+> Task :app:generateCodegenSchemaFromJavaScript SKIPPED
+> Task :app:generateCodegenArtifactsFromSchema SKIPPED
+> Task :expo-log-box:packageReleaseResources UP-TO-DATE
+> Task :react-native-picker_picker:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo:packageReleaseResources UP-TO-DATE
+> Task :react-native-community_datetimepicker:mergeReleaseNativeLibs NO-SOURCE
+> Task :react-native-picker_picker:generateReleaseResValues UP-TO-DATE
+> Task :app:generateReactNativeEntryPoint UP-TO-DATE
+> Task :react-native-community_datetimepicker:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :react-native-community_datetimepicker:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :react-native-picker_picker:generateReleaseResources UP-TO-DATE
+> Task :react-native-community_datetimepicker:generateReleaseBuildConfig UP-TO-DATE
+> Task :react-native-community_datetimepicker:generateReleaseResValues UP-TO-DATE
+> Task :expo:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-maps:parseReleaseLocalResources UP-TO-DATE
+> Task :expo-log-box:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-community_datetimepicker:generateReleaseResources UP-TO-DATE
+> Task :react-native-picker_picker:packageReleaseResources UP-TO-DATE
+> Task :expo-log-box:generateReleaseRFile UP-TO-DATE
+> Task :expo:generateReleaseRFile UP-TO-DATE
+> Task :react-native-maps:generateReleaseRFile UP-TO-DATE
+> Task :expo:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-community_datetimepicker:packageReleaseResources UP-TO-DATE
+> Task :expo-log-box:javaPreCompileRelease UP-TO-DATE
+> Task :react-native-picker_picker:parseReleaseLocalResources UP-TO-DATE
+> Task :expo-log-box:writeReleaseAarMetadata UP-TO-DATE
+> Task :expo:writeReleaseAarMetadata UP-TO-DATE
+> Task :expo:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-log-box:extractDeepLinksRelease UP-TO-DATE
+> Task :react-native-picker_picker:generateReleaseRFile UP-TO-DATE
+> Task :react-native-community_datetimepicker:parseReleaseLocalResources UP-TO-DATE
+> Task :react-native-picker_picker:javaPreCompileRelease UP-TO-DATE
+> Task :expo:processReleaseManifest UP-TO-DATE
+> Task :expo:compileReleaseLibraryResources UP-TO-DATE
+> Task :react-native-community_datetimepicker:generateReleaseRFile UP-TO-DATE
+> Task :expo:prepareReleaseArtProfile UP-TO-DATE
+> Task :react-native-maps:compileReleaseKotlin NO-SOURCE
+> Task :expo-log-box:processReleaseManifest UP-TO-DATE
+> Task :react-native-maps:javaPreCompileRelease UP-TO-DATE
+> Task :expo-log-box:compileReleaseLibraryResources UP-TO-DATE
+> Task :expo:mergeReleaseShaders UP-TO-DATE
+> Task :expo:compileReleaseShaders NO-SOURCE
+> Task :expo:generateReleaseAssets UP-TO-DATE
+> Task :expo-log-box:prepareReleaseArtProfile UP-TO-DATE
+> Task :expo:mergeReleaseAssets UP-TO-DATE
+> Task :expo-log-box:mergeReleaseShaders UP-TO-DATE
+> Task :expo:extractProguardFiles UP-TO-DATE
+> Task :expo-log-box:compileReleaseShaders NO-SOURCE
+> Task :expo-log-box:generateReleaseAssets UP-TO-DATE
+> Task :expo:prepareLintJarForPublish UP-TO-DATE
+> Task :expo:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-log-box:mergeReleaseAssets UP-TO-DATE
+> Task :expo:copyReleaseJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :expo-log-box:extractProguardFiles UP-TO-DATE
+> Task :expo:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :expo-log-box:prepareLintJarForPublish UP-TO-DATE
+> Task :expo:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :expo-log-box:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-log-box:copyReleaseJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :expo-log-box:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :expo-log-box:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :app:buildKotlinToolingMetadata UP-TO-DATE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:createBundleReleaseJsAndAssets UP-TO-DATE
+
+> Task :expo-constants:createExpoConfig
+The NODE_ENV environment variable is required but was not specified. Ensure the project is bundled with Expo CLI or NODE_ENV is set. Using only .env.local and .env
+env: load .env
+env: export EXPO_PUBLIC_API_BASE_URL
+
+> Task :expo-constants:preBuild
+> Task :app:preBuild
+> Task :expo-constants:preReleaseBuild
+> Task :app:preReleaseBuild
+> Task :expo-constants:mergeReleaseJniLibFolders UP-TO-DATE
+> Task :expo-constants:mergeReleaseNativeLibs NO-SOURCE
+> Task :expo-constants:copyReleaseJniLibsProjectOnly UP-TO-DATE
+> Task :expo-constants:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :expo-constants:generateReleaseBuildConfig UP-TO-DATE
+> Task :expo-constants:generateReleaseResValues UP-TO-DATE
+> Task :expo-constants:generateReleaseResources UP-TO-DATE
+> Task :expo-constants:packageReleaseResources UP-TO-DATE
+> Task :expo-constants:parseReleaseLocalResources UP-TO-DATE
+> Task :expo-constants:generateReleaseRFile UP-TO-DATE
+> Task :expo-constants:javaPreCompileRelease UP-TO-DATE
+> Task :expo-constants:writeReleaseAarMetadata UP-TO-DATE
+> Task :expo-constants:extractDeepLinksRelease UP-TO-DATE
+> Task :expo-constants:processReleaseManifest UP-TO-DATE
+> Task :expo-constants:compileReleaseLibraryResources UP-TO-DATE
+> Task :expo-constants:prepareReleaseArtProfile UP-TO-DATE
+> Task :expo-constants:mergeReleaseShaders UP-TO-DATE
+> Task :expo-constants:compileReleaseShaders NO-SOURCE
+> Task :expo-constants:generateReleaseAssets UP-TO-DATE
+> Task :expo-constants:mergeReleaseAssets UP-TO-DATE
+> Task :expo-constants:extractProguardFiles UP-TO-DATE
+> Task :expo-constants:prepareLintJarForPublish UP-TO-DATE
+> Task :expo-constants:stripReleaseDebugSymbols NO-SOURCE
+> Task :expo-constants:copyReleaseJniLibsProjectAndLocalJars UP-TO-DATE
+> Task :expo-constants:extractDeepLinksForAarRelease UP-TO-DATE
+> Task :expo-constants:writeReleaseLintModelMetadata UP-TO-DATE
+> Task :expo-modules-core:configureCMakeRelWithDebInfo[arm64-v8a]
+> Task :react-native-picker_picker:compileReleaseJavaWithJavac
+> Task :react-native-community_datetimepicker:compileReleaseKotlin
+> Task :react-native-maps:compileReleaseJavaWithJavac
+> Task :app:configureCMakeRelWithDebInfo[arm64-v8a]
