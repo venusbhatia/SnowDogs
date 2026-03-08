@@ -27,7 +27,7 @@ type Props = {
   riskZones: { green: number; yellow: number; orange: number; red: number };
   checkpoints: EnrichedCheckpoint[];
   selectedCheckpointId: string | null;
-  onSearch: (payload: { origin: LngLat; destination: LngLat; departureTime: string }) => Promise<void>;
+  onSearch: (payload: { origin: LngLat; destination: LngLat; originName: string; destinationName: string; departureTime: string }) => Promise<void>;
   onCheckpointSelect: (checkpoint: EnrichedCheckpoint) => void;
 };
 
@@ -110,13 +110,16 @@ export default function Sidebar({
       return;
     }
 
-    await onSearch({ origin, destination, departureTime });
+    const originLabel = CITIES.find((c) => c.value === originCity)?.label || originCity;
+    const destinationLabel = CITIES.find((c) => c.value === destinationCity)?.label || destinationCity;
+
+    await onSearch({ origin, destination, originName: originLabel, destinationName: destinationLabel, departureTime });
   };
 
   return (
     <div
       style={{
-        height: '100%',
+        height: 'auto',
         display: 'flex',
         flexDirection: 'column',
         background: 'var(--bg-secondary)',
@@ -340,7 +343,7 @@ export default function Sidebar({
         </section>
       )}
 
-      <section style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0, flex: 1 }}>
+      <section style={{ display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
         <div style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: 0.6 }}>
           Checkpoints
         </div>

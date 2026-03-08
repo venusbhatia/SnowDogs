@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.15.0",
+    "@cloudinary/react": "^1.14.4",
+    "@cloudinary/url-gen": "^1.22.0",
     "@turf/along": "^7.1.0",
     "@turf/helpers": "^7.1.0",
     "@turf/length": "^7.1.0",

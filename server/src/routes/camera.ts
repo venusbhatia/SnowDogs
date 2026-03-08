@@ -1,7 +1,24 @@
 import { Router } from 'express';
 
+import { generateRouteVideo, processCamera } from '../utils/cloudinary';
+
 type AnalyzeBody = {
   imageUrl?: unknown;
+};
+
+type EnhanceBody = {
+  imageUrl?: unknown;
+  cameraId?: unknown;
+};
+
+type RouteVideoBody = {
+  cameras?: unknown;
+};
+
+type RouteVideoCamera = {
+  publicId: string;
+  label: string;
+  riskLabel: string;
 };
 
 type AdvisoryCheckpoint = {
@@ -36,6 +53,22 @@ type AnalyzeCacheEntry = {
 const router = Router();
 const ANALYZE_TTL_MS = 120_000;
 const analyzeCache = new Map<string, AnalyzeCacheEntry>();
+
+function deriveCameraIdFromImageUrl(imageUrl: string): string {
+  const fallback = 'camera';
+
+  try {
+    const parsed = new URL(imageUrl);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    const last = segments[segments.length - 1] || fallback;
+    return last.replace(/\.[a-z0-9]+$/i, '') || fallback;
+  } catch {
+    const sanitizedUrl = imageUrl.split('?')[0].split('#')[0];
+    const segments = sanitizedUrl.split('/').filter(Boolean);
+    const last = segments[segments.length - 1] || fallback;
+    return last.replace(/\.[a-z0-9]+$/i, '') || fallback;
+  }
+}
 
 function toAbsoluteUrl(url: string, base: string): string {
   try {
@@ -206,6 +239,62 @@ async function callGemini(model: string, payload: unknown) {
 
   return data;
 }
+
+router.post('/enhance', async (req, res) => {
+  try {
+    const { imageUrl, cameraId } = req.body as EnhanceBody;
+    if (typeof imageUrl !== 'string' || imageUrl.trim() === '') {
+      return res.status(400).json({ error: 'Invalid payload. Expected { imageUrl: string, cameraId?: string }' });
+    }
+
+    const resolvedCameraId =
+      typeof cameraId === 'string' && cameraId.trim() !== ''
+        ? cameraId.trim()
+        : deriveCameraIdFromImageUrl(imageUrl.trim());
+
+    const buffer = await fetchCameraImageBuffer(imageUrl.trim());
+    const result = await processCamera(buffer, resolvedCameraId);
+
+    if (!result) {
+      return res.status(500).json({ error: 'Cloudinary camera processing failed' });
+    }
+
+    return res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Camera enhancement failed';
+    return res.status(500).json({ error: message });
+  }
+});
+
+router.post('/route-video', async (req, res) => {
+  try {
+    const { cameras } = req.body as RouteVideoBody;
+    if (!Array.isArray(cameras)) {
+      return res.status(400).json({
+        error: 'Invalid payload. Expected { cameras: Array<{ publicId, label, riskLabel }> }'
+      });
+    }
+
+    const normalized: RouteVideoCamera[] = cameras
+      .filter((item): item is Record<string, unknown> => Boolean(item && typeof item === 'object'))
+      .map((item) => ({
+        publicId: typeof item.publicId === 'string' ? item.publicId.trim() : '',
+        label: typeof item.label === 'string' ? item.label.trim() : '',
+        riskLabel: typeof item.riskLabel === 'string' ? item.riskLabel.trim() : ''
+      }))
+      .filter((item) => item.publicId !== '');
+
+    const result = await generateRouteVideo(normalized);
+    if (!result) {
+      return res.status(500).json({ error: 'Cloudinary route video generation failed' });
+    }
+
+    return res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Route video generation failed';
+    return res.status(500).json({ error: message });
+  }
+});
 
 router.post('/analyze', async (req, res) => {
   try {

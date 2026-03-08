@@ -98,3 +98,34 @@ export type CameraScanProgress = {
   completed: number;
   total: number;
 };
+
+export type Report = {
+  id: string;
+  text: string;
+  source: 'app' | 'social_media';
+  timestamp: string;
+  processed: boolean;
+};
+
+export type AgentRiskSegment = {
+  location: string;
+  lat: number;
+  lng: number;
+  risk: string;
+  description: string;
+};
+
+export type ProcessedReport = {
+  original_text: string;
+  resolved_location: string;
+  credibility: number;
+  official_agrees: boolean;
+};
+
+export type AgentBriefing = {
+  overall_risk: 'safe' | 'moderate' | 'hazardous' | 'do_not_travel' | string;
+  recommended_action: string;
+  risk_segments: AgentRiskSegment[];
+  processed_reports: ProcessedReport[];
+  executive_summary: string;
+};

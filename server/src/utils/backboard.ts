@@ -1,14 +1,16 @@
-import { BackboardClient } from 'backboard-sdk';
+import type { BackboardClient as BackboardClientType } from 'backboard-sdk';
 
 const ASSISTANT_NAME = 'SnowDogs Route Intelligence';
 const ASSISTANT_SYSTEM_PROMPT =
   'You are a persistent memory system for a Canadian winter road safety platform. You store and recall route analysis briefings, driver reports, and road condition patterns for Ontario highways. When queried about a route corridor, recall all relevant historical data.';
 
 let cachedApiKey: string | null = null;
-let client: BackboardClient | null = null;
+let client: BackboardClientType | null = null;
 let assistantIdCache: string | null = null;
 const threadIdByCorridor = new Map<string, string>();
 const lookupAttempted = new Set<string>();
+let backboardClientCtor: (new (options: { apiKey: string }) => BackboardClientType) | null = null;
+let sdkLoadAttempted = false;
 
 function logBackboardError(context: string, error: unknown): void {
   const timestamp = new Date().toISOString();
@@ -20,14 +22,52 @@ function normalizeCorridor(corridor: string): string {
   return corridor.trim().toLowerCase();
 }
 
-function getClient(): BackboardClient | null {
+async function loadBackboardSdk(): Promise<
+  (new (options: { apiKey: string }) => BackboardClientType) | null
+> {
+  if (backboardClientCtor) {
+    return backboardClientCtor;
+  }
+
+  if (sdkLoadAttempted) {
+    return null;
+  }
+
+  sdkLoadAttempted = true;
+
+  try {
+    const dynamicImport = new Function(
+      'specifier',
+      'return import(specifier)'
+    ) as (specifier: string) => Promise<{ BackboardClient?: unknown }>;
+
+    const moduleExports = await dynamicImport('backboard-sdk');
+    if (typeof moduleExports.BackboardClient === 'function') {
+      backboardClientCtor = moduleExports.BackboardClient as new (options: {
+        apiKey: string;
+      }) => BackboardClientType;
+      return backboardClientCtor;
+    }
+  } catch (error) {
+    logBackboardError('loadBackboardSdk', error);
+  }
+
+  return null;
+}
+
+async function getClient(): Promise<BackboardClientType | null> {
   const apiKey = process.env.BACKBOARD_API_KEY?.trim();
   if (!apiKey) {
     return null;
   }
 
+  const ClientCtor = await loadBackboardSdk();
+  if (!ClientCtor) {
+    return null;
+  }
+
   if (!client || cachedApiKey !== apiKey) {
-    client = new BackboardClient({ apiKey });
+    client = new ClientCtor({ apiKey });
     cachedApiKey = apiKey;
     assistantIdCache = null;
     threadIdByCorridor.clear();
@@ -97,7 +137,7 @@ async function ensureAssistantId(): Promise<string | null> {
     return assistantIdCache;
   }
 
-  const backboard = getClient();
+  const backboard = await getClient();
   if (!backboard) {
     return null;
   }
@@ -141,7 +181,7 @@ function threadHasCorridorMarker(thread: unknown, corridor: string): boolean {
 }
 
 async function findExistingThreadForCorridor(corridor: string): Promise<string | null> {
-  const backboard = getClient();
+  const backboard = await getClient();
   if (!backboard) {
     return null;
   }
@@ -190,7 +230,7 @@ async function getOrCreateCorridorThread(
     return existingCached;
   }
 
-  const backboard = getClient();
+  const backboard = await getClient();
   if (!backboard) {
     return null;
   }
@@ -266,7 +306,7 @@ function summarizeRiskSegments(briefing: Record<string, unknown>): string {
 
 export async function storeRouteBriefing(corridor: string, briefing: object): Promise<void> {
   try {
-    const backboard = getClient();
+    const backboard = await getClient();
     if (!backboard) {
       return;
     }
@@ -312,7 +352,7 @@ export async function storeRouteBriefing(corridor: string, briefing: object): Pr
 
 export async function recallCorridorHistory(corridor: string): Promise<string | null> {
   try {
-    const backboard = getClient();
+    const backboard = await getClient();
     if (!backboard) {
       return null;
     }
@@ -347,7 +387,7 @@ export async function storeDriverReport(
       return;
     }
 
-    const backboard = getClient();
+    const backboard = await getClient();
     if (!backboard) {
       return;
     }

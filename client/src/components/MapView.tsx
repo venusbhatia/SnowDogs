@@ -112,6 +112,7 @@ export default function MapView({
   onCheckpointClick
 }: Props) {
   const mapRef = useRef<MapRef>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [hoveredCheckpointId, setHoveredCheckpointId] = useState<string | null>(null);
 
   const token = import.meta.env.VITE_MAPBOX_TOKEN;
@@ -178,8 +179,54 @@ export default function MapView({
     );
   }, [routeGeometry]);
 
+  useEffect(() => {
+    const mapInstance = mapRef.current;
+    const container = containerRef.current;
+    if (!mapInstance || !container) {
+      return;
+    }
+
+    let frameId: number | null = null;
+    const scheduleResize = () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      frameId = window.requestAnimationFrame(() => {
+        mapRef.current?.resize();
+      });
+    };
+
+    scheduleResize();
+
+    let observer: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(() => {
+        scheduleResize();
+      });
+      observer.observe(container);
+    }
+
+    return () => {
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      observer?.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      mapRef.current?.resize();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [selectedCheckpointId]);
+
   return (
     <div
+      ref={containerRef}
       style={{
         width: '100%',
         height: '100%'

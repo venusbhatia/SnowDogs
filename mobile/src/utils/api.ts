@@ -1,7 +1,9 @@
 import type {
   Advisory,
+  AgentBriefing,
   CameraAnalysis,
   Checkpoint,
+  Report,
   RouteResponse,
   WeatherCheckpoint
 } from '../types';
@@ -156,5 +158,61 @@ export async function generateAdvisory(checkpoint: {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown advisory generation error';
     throw new Error(`Failed to generate advisory: ${message}`);
+  }
+}
+
+export async function fetchReports(): Promise<Report[]> {
+  try {
+    const response = await fetch(toApiUrl('/api/reports'));
+    if (!response.ok) {
+      throw new Error(await parseError(response, `Reports request failed (${response.status})`));
+    }
+    const payload = (await response.json()) as unknown;
+    if (Array.isArray(payload)) return payload as Report[];
+    if (payload && typeof payload === 'object' && Array.isArray((payload as { reports?: unknown[] }).reports)) {
+      return (payload as { reports: Report[] }).reports;
+    }
+    return [];
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown reports fetch error';
+    throw new Error(`Failed to fetch reports: ${message}`);
+  }
+}
+
+export async function submitReport(text: string, source: 'app' | 'social_media'): Promise<Report> {
+  try {
+    const response = await fetch(toApiUrl('/api/reports/submit'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, source })
+    });
+    if (!response.ok) {
+      throw new Error(await parseError(response, `Submit failed (${response.status})`));
+    }
+    return (await response.json()) as Report;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown submit error';
+    throw new Error(`Failed to submit report: ${message}`);
+  }
+}
+
+export async function runAgentAnalysis(payload: {
+  reports: Array<{ text: string; source: string; timestamp: string }>;
+  checkpoints: Array<{ lat: number; lng: number; distanceKm: number; riskScore: number; etaTimestamp: string }>;
+  routeSummary: { origin: string; destination: string; distanceKm: number; durationHrs: number };
+}): Promise<AgentBriefing> {
+  try {
+    const response = await fetch(toApiUrl('/api/agent/analyze-route'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error(await parseError(response, `Agent request failed (${response.status})`));
+    }
+    return (await response.json()) as AgentBriefing;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown agent error';
+    throw new Error(`Agent analysis failed: ${message}`);
   }
 }

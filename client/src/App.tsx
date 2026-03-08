@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
+import { useEffect, useMemo, useState } from 'react';
 
 import AgentPanel from './components/AgentPanel';
 import CameraPanel from './components/CameraPanel';
@@ -11,6 +12,7 @@ import {
   fetchRoadConditions,
   fetchRoute,
   fetchWeather,
+  setAuthToken,
   type RouteResponse,
   type WeatherCheckpoint
 } from './utils/api';
@@ -29,14 +31,6 @@ type RiskUpdate = {
   lat: number;
   lng: number;
   newRisk: number;
-};
-
-const PRESET_LOCATIONS: Record<string, LngLat> = {
-  'Thunder Bay': [-89.2477, 48.3809],
-  Toronto: [-79.3832, 43.6532],
-  Sudbury: [-81.0, 46.49],
-  'Sault Ste Marie': [-84.33, 46.52],
-  Barrie: [-79.69, 44.39]
 };
 
 function parseNumber(value: unknown): number | null {
@@ -311,13 +305,48 @@ function findNearestRiskUpdate(checkpoint: EnrichedCheckpoint, updates: RiskUpda
 }
 
 export default function App() {
+  const { isAuthenticated, getIdTokenClaims } = useAuth0();
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAuthToken(null);
+      return;
+    }
+    getIdTokenClaims().then((claims) => {
+      setAuthToken(claims?.__raw ?? null);
+    }).catch(() => {
+      setAuthToken(null);
+    });
+  }, [isAuthenticated, getIdTokenClaims]);
+
   const [routeGeo, setRouteGeo] = useState<RouteGeometry | null>(null);
   const [checkpoints, setCheckpoints] = useState<EnrichedCheckpoint[]>([]);
   const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
-  const [selectedCheckpoint, setSelectedCheckpoint] = useState<EnrichedCheckpoint | null>(null);
+  const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null);
+  const [selectedCheckpointSnapshot, setSelectedCheckpointSnapshot] = useState<EnrichedCheckpoint | null>(null);
+  const [routeNames, setRouteNames] = useState<{ origin: string; destination: string } | null>(null);
   const [agentPanelOpen, setAgentPanelOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const selectedCheckpoint = useMemo(
+    () =>
+      checkpoints.find((checkpoint) => checkpoint.id === selectedCheckpointId) ??
+      selectedCheckpointSnapshot,
+    [checkpoints, selectedCheckpointId, selectedCheckpointSnapshot]
+  );
+
+  useEffect(() => {
+    if (!selectedCheckpointId) {
+      setSelectedCheckpointSnapshot(null);
+      return;
+    }
+
+    const fromCurrent = checkpoints.find((checkpoint) => checkpoint.id === selectedCheckpointId) ?? null;
+    if (fromCurrent) {
+      setSelectedCheckpointSnapshot(fromCurrent);
+    }
+  }, [checkpoints, selectedCheckpointId]);
 
   const riskZones = useMemo(
     () =>
@@ -338,7 +367,8 @@ export default function App() {
       setRouteGeo(null);
       setCheckpoints([]);
       setRouteInfo(null);
-      setSelectedCheckpoint(null);
+      setSelectedCheckpointId(null);
+      setSelectedCheckpointSnapshot(null);
       setAgentPanelOpen(false);
 
       const route = await fetchRoute(origin, destination);
@@ -413,14 +443,24 @@ export default function App() {
   const handleSidebarSearch = async (payload: {
     origin: LngLat;
     destination: LngLat;
+    originName: string;
+    destinationName: string;
     departureTime: string;
   }) => {
+    setRouteNames({ origin: payload.originName, destination: payload.destinationName });
     await handleSearch(payload.origin, payload.destination, payload.departureTime);
   };
 
   const onCheckpointUpdate = (updated: EnrichedCheckpoint) => {
     setCheckpoints((prev) => prev.map((cp) => (cp.id === updated.id ? updated : cp)));
-    setSelectedCheckpoint(updated);
+    if (updated.id === selectedCheckpointId) {
+      setSelectedCheckpointSnapshot(updated);
+    }
+  };
+
+  const handleCheckpointSelect = (checkpoint: EnrichedCheckpoint) => {
+    setSelectedCheckpointId(checkpoint.id);
+    setSelectedCheckpointSnapshot(checkpoint);
   };
 
   const onAgentRiskUpdate = (updates: RiskUpdate[]) => {
@@ -445,24 +485,6 @@ export default function App() {
       })
     );
 
-    setSelectedCheckpoint((prev) => {
-      if (!prev) {
-        return prev;
-      }
-
-      const riskUpdate = findNearestRiskUpdate(prev, updates);
-      if (!riskUpdate) {
-        return prev;
-      }
-
-      const nextScore = Math.max(0, Math.min(1, riskUpdate.newRisk));
-      return {
-        ...prev,
-        riskScore: nextScore,
-        riskColor: riskColor(nextScore),
-        riskLabel: riskLabel(nextScore)
-      };
-    });
   };
 
   return (
@@ -476,8 +498,8 @@ export default function App() {
             riskZones={riskZones}
             checkpoints={checkpoints}
             onSearch={handleSidebarSearch}
-            onCheckpointSelect={setSelectedCheckpoint}
-            selectedCheckpointId={selectedCheckpoint?.id ?? null}
+            onCheckpointSelect={handleCheckpointSelect}
+            selectedCheckpointId={selectedCheckpointId}
           />
           {agentPanelOpen && checkpoints.length > 0 && (
             <>
@@ -491,6 +513,7 @@ export default function App() {
               <AgentPanel
                 checkpoints={checkpoints}
                 routeInfo={routeInfo ? { distanceKm: routeInfo.distanceKm, durationHrs: routeInfo.durationHrs } : null}
+                routeNames={routeNames}
                 onRiskUpdate={onAgentRiskUpdate}
               />
             </>
@@ -502,17 +525,23 @@ export default function App() {
         <MapView
           routeGeometry={routeGeo}
           checkpoints={checkpoints}
-          selectedCheckpointId={selectedCheckpoint?.id ?? null}
-          onCheckpointClick={setSelectedCheckpoint}
+          selectedCheckpointId={selectedCheckpointId}
+          onCheckpointClick={handleCheckpointSelect}
         />
-        <RiskTimeline checkpoints={checkpoints} onCheckpointSelect={setSelectedCheckpoint} />
+        <RiskTimeline
+          checkpoints={checkpoints}
+          onCheckpointSelect={handleCheckpointSelect}
+        />
       </main>
 
       {selectedCheckpoint && (
         <aside className="app-camera-panel">
           <CameraPanel
             checkpoint={selectedCheckpoint}
-            onClose={() => setSelectedCheckpoint(null)}
+            onClose={() => {
+              setSelectedCheckpointId(null);
+              setSelectedCheckpointSnapshot(null);
+            }}
             onCheckpointUpdate={onCheckpointUpdate}
           />
         </aside>
@@ -520,5 +549,3 @@ export default function App() {
     </div>
   );
 }
-
-export { PRESET_LOCATIONS };

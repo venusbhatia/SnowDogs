@@ -23,18 +23,20 @@ SnowDogs uses an agentic backend architecture centered on Gemini 2.5 Flash funct
 
 ## Technology Stack
 
-- React
-- TypeScript
-- Mapbox
-- Gemini 2.5 Flash with function calling
-- ElevenLabs
-- Auth0
-- Open-Meteo
-- Ontario 511 API
-- Backboard.io
+- React + Vite (web) and Expo / React Native (mobile)
+- TypeScript end-to-end
+- Mapbox GL JS (web) and react-native-maps (mobile)
+- Gemini 2.5 Flash with multi-turn function calling
+- Cloudinary AI Vision for dual-AI camera analysis
+- ElevenLabs Flash v2.5 voice alerts with browser TTS fallback
+- Auth0 social login
+- Open-Meteo GEM HRDPS 2.5 km weather model
+- Ontario 511 REST API for road conditions, cameras, and events
+- Backboard.io persistent corridor memory
 
 ## Monorepo Structure
 
-- `client/`: React + Vite TypeScript frontend
-- `server/`: Express + TypeScript backend routes and agent orchestration
-- root scripts: concurrent local development for client and server
+- `client/`: React + Vite TypeScript frontend (web dashboard)
+- `server/`: Express + TypeScript backend — routes, agent orchestration, risk scoring
+- `mobile/`: Expo / React Native app with full route scanning and camera analysis
+- Root scripts: concurrent local development (`npm run dev`)

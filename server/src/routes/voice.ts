@@ -47,7 +47,8 @@ router.post('/speak', async (req, res) => {
     );
 
     if (!elevenResponse.ok || !elevenResponse.body) {
-      return res.status(500).json({ error: 'Voice generation failed' });
+      // ElevenLabs rejected — fall back to browser TTS instead of showing an error
+      return res.json({ fallback: true, text });
     }
 
     res.setHeader('Content-Type', 'audio/mpeg');
@@ -55,7 +56,8 @@ router.post('/speak', async (req, res) => {
 
     Readable.fromWeb(elevenResponse.body as never).pipe(res);
   } catch {
-    return res.status(500).json({ error: 'Voice generation failed' });
+    // Network failure — fall back to browser TTS
+    return res.json({ fallback: true, text });
   }
 });
 

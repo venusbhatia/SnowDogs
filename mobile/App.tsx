@@ -8,6 +8,7 @@ import {
   View
 } from 'react-native';
 
+import AgentCard from './src/components/AgentCard';
 import CheckpointDetailCard from './src/components/CheckpointDetailCard';
 import CheckpointList from './src/components/CheckpointList';
 import OperationsCard from './src/components/OperationsCard';
@@ -51,6 +52,7 @@ export default function App() {
   const [scanStage, setScanStage] = useState<ScanStage>('idle');
   const [cameraProgress, setCameraProgress] = useState<CameraScanProgress>({ completed: 0, total: 0 });
   const [activeRouteLabel, setActiveRouteLabel] = useState<string | null>(null);
+  const [routeNames, setRouteNames] = useState<{ origin: string; destination: string } | null>(null);
   const [lastScanAt, setLastScanAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +64,7 @@ export default function App() {
       setScanStage('route');
       setCameraProgress({ completed: 0, total: 0 });
       setActiveRouteLabel(`${payload.originLabel} to ${payload.destinationLabel}`);
+      setRouteNames({ origin: payload.originLabel, destination: payload.destinationLabel });
       setError(null);
       setRouteGeometry(null);
       setCheckpoints([]);
@@ -208,6 +211,10 @@ export default function App() {
           selectedCheckpointId={selectedCheckpoint?.id ?? null}
           onCheckpointSelect={setSelectedCheckpoint}
         />
+
+        {checkpoints.length > 0 && (
+          <AgentCard checkpoints={checkpoints} routeInfo={routeInfo} routeNames={routeNames} />
+        )}
 
         {selectedCheckpoint ? (
           <CheckpointDetailCard checkpoint={selectedCheckpoint} onCheckpointUpdate={onCheckpointUpdate} />

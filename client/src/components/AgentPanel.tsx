@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 
 import type { EnrichedCheckpoint } from '../types';
-import { speakAlert } from '../utils/api';
+import { speakAlert, authHeaders } from '../utils/api';
 
 type Props = {
   checkpoints: EnrichedCheckpoint[];
   routeInfo: { distanceKm: number; durationHrs: number } | null;
+  routeNames: { origin: string; destination: string } | null;
   onRiskUpdate: (updates: Array<{ lat: number; lng: number; newRisk: number }>) => void;
 };
 
@@ -149,7 +150,7 @@ async function parseApiError(response: Response, fallback: string): Promise<stri
   }
 }
 
-export default function AgentPanel({ checkpoints, routeInfo, onRiskUpdate }: Props) {
+export default function AgentPanel({ checkpoints, routeInfo, routeNames, onRiskUpdate }: Props) {
   const [reportText, setReportText] = useState('');
   const [reportSource, setReportSource] = useState<'app' | 'social_media'>('social_media');
   const [reports, setReports] = useState<Report[]>([]);
@@ -221,7 +222,7 @@ export default function AgentPanel({ checkpoints, routeInfo, onRiskUpdate }: Pro
 
       const response = await fetch('/api/reports/submit', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify({ text, source: reportSource })
       });
 
@@ -265,8 +266,8 @@ export default function AgentPanel({ checkpoints, routeInfo, onRiskUpdate }: Pro
           etaTimestamp: checkpoint.etaTimestamp
         })),
         routeSummary: {
-          origin: 'Thunder Bay',
-          destination: 'Toronto',
+          origin: routeNames?.origin || 'Unknown',
+          destination: routeNames?.destination || 'Unknown',
           distanceKm: routeInfo.distanceKm,
           durationHrs: routeInfo.durationHrs
         }
@@ -274,7 +275,7 @@ export default function AgentPanel({ checkpoints, routeInfo, onRiskUpdate }: Pro
 
       const response = await fetch('/api/agent/analyze-route', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(),
         body: JSON.stringify(payload)
       });
 

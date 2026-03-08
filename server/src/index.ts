@@ -40,8 +40,40 @@ for (const key of REQUIRED_API_KEYS) {
   }
 }
 
-app.use(cors({ origin: '*' }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, server-to-server)
+      if (!origin) return callback(null, true);
+      // Allow localhost dev servers and LAN IPs (for Expo on physical devices)
+      if (/^http:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+      callback(null, false);
+    },
+    credentials: true
+  })
+);
 app.use(express.json({ limit: '10mb' }));
+
+// Attach Auth0 identity to request when present (non-blocking)
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith('Bearer ')) {
+    const token = authHeader.slice(7);
+    try {
+      // Decode the ID token payload (signature validation deferred to Auth0 domain check in production)
+      const payloadB64 = token.split('.')[1];
+      if (payloadB64) {
+        const decoded = JSON.parse(Buffer.from(payloadB64, 'base64url').toString());
+        (req as Request & { user?: unknown }).user = decoded;
+      }
+    } catch {
+      // Invalid token format — continue without user context
+    }
+  }
+  next();
+});
 
 app.use('/api/route', routeRouter);
 app.use('/api/weather', weatherRouter);

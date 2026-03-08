@@ -7,7 +7,9 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "outDir": "dist",
-    "rootDir": "."
+    "rootDir": "src",
+    "declaration": false,
+    "sourceMap": false
   },
-  "include": ["src", "routes", "utils", "index.ts"]
+  "include": ["src"]
 }

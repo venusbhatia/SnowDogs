@@ -43,7 +43,37 @@ export interface Advisory {
   advisory: string;
 }
 
+export interface CloudinaryEnhanceResult {
+  originalUrl: string;
+  enhancedUrl: string;
+  publicId: string;
+  vision: {
+    road_surface: string;
+    visibility: string;
+    snow_coverage_percent: number;
+    hazards: string[];
+    raw_responses: Array<{ prompt: string; value: string }>;
+  };
+}
+
 type ApiError = { error?: string; fallback?: boolean; text?: string };
+
+let _authToken: string | null = null;
+
+export function setAuthToken(token: string | null): void {
+  _authToken = token;
+}
+
+export function authHeaders(extra?: HeadersInit): HeadersInit {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (_authToken) {
+    headers['Authorization'] = `Bearer ${_authToken}`;
+  }
+  if (extra) {
+    Object.assign(headers, extra);
+  }
+  return headers;
+}
 
 async function parseError(response: Response, fallback: string): Promise<string> {
   try {
@@ -61,7 +91,7 @@ export async function fetchRoute(
   try {
     const response = await fetch('/api/route', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ origin, destination })
     });
 
@@ -80,7 +110,7 @@ export async function fetchWeather(checkpoints: Checkpoint[]): Promise<WeatherCh
   try {
     const response = await fetch('/api/weather', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ checkpoints })
     });
 
@@ -113,22 +143,6 @@ export async function fetchRoadConditions(): Promise<any[]> {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown road conditions fetch error';
     throw new Error(`Failed to fetch road conditions: ${message}`);
-  }
-}
-
-export async function fetchCameras(): Promise<any[]> {
-  try {
-    const response = await fetch('/api/road/cameras');
-
-    if (!response.ok) {
-      throw new Error(await parseError(response, `Cameras request failed (${response.status})`));
-    }
-
-    const payload = (await response.json()) as { data?: any[] } | any[];
-    return Array.isArray(payload) ? payload : Array.isArray(payload.data) ? payload.data : [];
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unknown cameras fetch error';
-    throw new Error(`Failed to fetch cameras: ${message}`);
   }
 }
 
@@ -167,7 +181,7 @@ export async function analyzeCamera(imageUrl: string): Promise<CameraAnalysis> {
 
     const response = await fetch('/api/camera/analyze', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ imageUrl: normalizedImageUrl })
     });
 
@@ -182,11 +196,45 @@ export async function analyzeCamera(imageUrl: string): Promise<CameraAnalysis> {
   }
 }
 
-export async function generateAdvisory(checkpoint: any): Promise<Advisory> {
+export async function enhanceCamera(
+  imageUrl: string,
+  cameraId?: string
+): Promise<CloudinaryEnhanceResult> {
+  try {
+    const response = await fetch('/api/camera/enhance', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ imageUrl, cameraId })
+    });
+
+    if (!response.ok) {
+      throw new Error(await parseError(response, `Enhance failed (${response.status})`));
+    }
+
+    return (await response.json()) as CloudinaryEnhanceResult;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown camera enhancement error';
+    throw new Error(`Failed to enhance camera image: ${message}`);
+  }
+}
+
+export interface AdvisoryCheckpoint {
+  lat: number;
+  lng: number;
+  eta: string;
+  snowfall: number;
+  visibility: number;
+  windSpeed: number;
+  temperature: number;
+  roadSurface: string;
+  riskScore: number;
+}
+
+export async function generateAdvisory(checkpoint: AdvisoryCheckpoint): Promise<Advisory> {
   try {
     const response = await fetch('/api/camera/advisory', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ checkpoint })
     });
 
@@ -205,7 +253,7 @@ export async function speakAlert(text: string): Promise<void> {
   try {
     const response = await fetch('/api/voice/speak', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders(),
       body: JSON.stringify({ text })
     });
 
@@ -253,8 +301,4 @@ export async function speakAlert(text: string): Promise<void> {
     const message = error instanceof Error ? error.message : 'Unknown voice alert error';
     throw new Error(`Failed to speak alert: ${message}`);
   }
-}
-
-export interface WeatherResponse {
-  checkpoints: WeatherCheckpoint[];
 }

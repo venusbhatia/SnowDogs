@@ -1,6 +1,7 @@
 import { Router, type Request } from 'express';
 
 import { recallCorridorHistory, storeDriverReport, storeRouteBriefing } from '../utils/backboard';
+import { processCamera } from '../utils/cloudinary';
 
 type InputReport = {
   text: string;
@@ -70,7 +71,7 @@ type FunctionDeclaration = {
 const router = Router();
 
 const SYSTEM_PROMPT =
-  'You are a Canadian winter road safety intelligence agent. You receive unstructured driver reports from social media and cross-reference them with official government data and weather forecasts. Your job: geocode vague locations, verify reports against official sources, resolve conflicts between data sources (driver reports are often more current than government data which updates only 5 times daily), and produce a comprehensive route safety briefing. Be specific about Highway 11 and Highway 17 in Northern Ontario.';
+  'You are a Canadian winter road safety intelligence agent. You receive unstructured driver reports from social media and cross-reference them with official government data and weather forecasts. Your job: geocode vague locations, verify reports against official sources, resolve conflicts between data sources (driver reports are often more current than government data which updates only 5 times daily), and produce a comprehensive route safety briefing. Be specific about Highway 11 and Highway 17 in Northern Ontario. You also have access to Cloudinary AI Vision as a second opinion tool. When analyzing highway cameras, consider using both Gemini vision and Cloudinary AI Vision to cross-reference road conditions for higher confidence assessments.';
 
 const TOOL_DECLARATIONS: FunctionDeclaration[] = [
   {
@@ -123,6 +124,22 @@ const TOOL_DECLARATIONS: FunctionDeclaration[] = [
         weather_summary: { type: 'STRING', description: 'Nearby weather summary.' }
       },
       required: ['report_text', 'official_data', 'weather_summary']
+    }
+  },
+  {
+    name: 'analyze_camera_cloudinary',
+    description:
+      'Upload a highway camera image to Cloudinary for AI enhancement and independent AI Vision road condition analysis. Returns an enhanced image URL and a second AI opinion on road surface, visibility, snow coverage, and hazards. Use this to cross-reference Gemini camera analysis.',
+    parameters: {
+      type: 'OBJECT',
+      properties: {
+        image_url: {
+          type: 'STRING',
+          description: 'The camera image URL or /api/road/camera-proxy/viewId path.'
+        },
+        camera_id: { type: 'STRING', description: 'Camera identifier for caching.' }
+      },
+      required: ['image_url']
     }
   }
 ];
@@ -196,6 +213,18 @@ function buildCorridorKey(origin: string, destination: string): string {
   return `corridor:${from}-${to}`;
 }
 
+function deriveCameraIdFromUrl(imageUrl: string): string {
+  try {
+    const parsed = new URL(imageUrl);
+    const segments = parsed.pathname.split('/').filter(Boolean);
+    const last = segments[segments.length - 1] || 'camera';
+    return last.replace(/\.[a-z0-9]+$/i, '') || 'camera';
+  } catch {
+    const fallback = imageUrl.split('?')[0].split('#')[0].split('/').filter(Boolean).pop();
+    return (fallback || 'camera').replace(/\.[a-z0-9]+$/i, '') || 'camera';
+  }
+}
+
 function stripJsonFences(text: string): string {
   const completeFence = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (completeFence?.[1]) {
@@ -259,7 +288,8 @@ async function callGemini(
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(30_000)
   });
 
   const data = (await response.json()) as GeminiResponse;
@@ -495,6 +525,46 @@ async function assessCredibility(
   return parseJsonFromText(text);
 }
 
+async function fetchCameraImageBuffer(sourceUrl: string): Promise<Buffer> {
+  const proxyPathMatch = sourceUrl.match(/^\/api\/road\/camera-proxy\/([^/?#]+)/);
+  if (proxyPathMatch?.[1]) {
+    const viewId = proxyPathMatch[1];
+    const viewerUrl = `https://511on.ca/map/Cctv/${encodeURIComponent(viewId)}`;
+
+    const viewerResponse = await fetch(viewerUrl, {
+      headers: { Accept: 'image/*,text/html,*/*;q=0.8' }
+    });
+    if (!viewerResponse.ok) {
+      throw new Error('Failed to fetch Ontario 511 camera view');
+    }
+
+    const contentType = (viewerResponse.headers.get('content-type') || '').toLowerCase();
+    if (contentType.startsWith('image/')) {
+      return Buffer.from(await viewerResponse.arrayBuffer());
+    }
+
+    const html = await viewerResponse.text();
+    const imgMatch = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+    const src = imgMatch?.[1];
+    if (!src) {
+      throw new Error('Could not resolve camera image from Ontario 511');
+    }
+
+    const imageUrl = new URL(src, viewerUrl).toString();
+    const imageResponse = await fetch(imageUrl, { headers: { Accept: 'image/*,*/*;q=0.8' } });
+    if (!imageResponse.ok) {
+      throw new Error('Failed to fetch resolved camera image');
+    }
+    return Buffer.from(await imageResponse.arrayBuffer());
+  }
+
+  const directResponse = await fetch(sourceUrl);
+  if (!directResponse.ok) {
+    throw new Error('Failed to fetch image URL');
+  }
+  return Buffer.from(await directResponse.arrayBuffer());
+}
+
 async function executeTool(
   call: GeminiFunctionCall,
   context: { baseUrl: string; corridor: string }
@@ -555,6 +625,28 @@ async function executeTool(
       return { name, content };
     }
 
+    if (name === 'analyze_camera_cloudinary') {
+      const imageUrlArg = typeof args.image_url === 'string' ? args.image_url.trim() : '';
+      const cameraIdArg = typeof args.camera_id === 'string' ? args.camera_id.trim() : '';
+
+      if (!imageUrlArg) {
+        throw new Error('image_url is required');
+      }
+
+      const normalizedUrl = imageUrlArg.startsWith('/')
+        ? `${context.baseUrl}${imageUrlArg}`
+        : imageUrlArg;
+      const cameraId = cameraIdArg || deriveCameraIdFromUrl(normalizedUrl);
+      const buffer = await fetchCameraImageBuffer(normalizedUrl);
+      const result = await processCamera(buffer, cameraId);
+
+      if (!result) {
+        throw new Error('Cloudinary camera processing returned null');
+      }
+
+      return { name, content: result };
+    }
+
     throw new Error(`Unknown tool: ${name}`);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -597,6 +689,10 @@ router.post('/analyze-route', async (req, res) => {
     const routeSummary = routeSummaryRaw;
     const corridor = buildCorridorKey(routeSummary.origin, routeSummary.destination);
     const baseUrl = getServerBaseUrl(req);
+
+    const AGENT_TIMEOUT_MS = 90_000;
+    const agentDeadline = Date.now() + AGENT_TIMEOUT_MS;
+
     const history = await recallCorridorHistory(corridor);
 
     const memoryPrefix = history
@@ -628,6 +724,11 @@ router.post('/analyze-route', async (req, res) => {
     let stoppedCallingTools = false;
 
     for (let round = 0; round < 8; round += 1) {
+      if (Date.now() > agentDeadline) {
+        console.warn(`[${new Date().toISOString()}] Agent hit ${AGENT_TIMEOUT_MS / 1000}s deadline at round ${round}, forcing final summary`);
+        break;
+      }
+
       const response = await callGemini('gemini-2.5-flash', {
         systemInstruction: {
           role: 'system',

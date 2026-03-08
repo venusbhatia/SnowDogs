@@ -1,13 +1,30 @@
+import { AdvancedImage, lazyload, placeholder, responsive } from '@cloudinary/react';
+import { Cloudinary } from '@cloudinary/url-gen';
+import { improve } from '@cloudinary/url-gen/actions/adjust';
+import { format, quality } from '@cloudinary/url-gen/actions/delivery';
+import { webp } from '@cloudinary/url-gen/qualifiers/format';
+import { auto } from '@cloudinary/url-gen/qualifiers/quality';
 import { useEffect, useMemo, useState } from 'react';
 
 import type { EnrichedCheckpoint } from '../types';
-import { analyzeCamera, generateAdvisory, speakAlert, type CameraAnalysis } from '../utils/api';
+import {
+  analyzeCamera,
+  enhanceCamera,
+  generateAdvisory,
+  speakAlert,
+  type CameraAnalysis,
+  type CloudinaryEnhanceResult
+} from '../utils/api';
 
 type Props = {
   checkpoint: EnrichedCheckpoint;
   onClose: () => void;
   onCheckpointUpdate: (checkpoint: EnrichedCheckpoint) => void;
 };
+
+const cld = new Cloudinary({
+  cloud: { cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'demo' }
+});
 
 function riskHex(label: EnrichedCheckpoint['riskLabel']): string {
   if (label === 'Clear') {
@@ -30,15 +47,40 @@ function valueStyle(isDanger: boolean): React.CSSProperties {
   };
 }
 
+function deriveCameraId(imageUrl: string): string {
+  try {
+    const parsed = new URL(imageUrl, window.location.origin);
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    const lastPart = parts[parts.length - 1] || 'camera';
+    return lastPart.replace(/\.[a-z0-9]+$/i, '') || 'camera';
+  } catch {
+    return 'camera';
+  }
+}
+
 export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }: Props) {
   const cameraUrl = checkpoint._cameraUrl || checkpoint.cameraUrl || null;
 
   const [analysisCache, setAnalysisCache] = useState<Record<string, CameraAnalysis>>({});
   const [analysis, setAnalysis] = useState<CameraAnalysis | null>(checkpoint.cameraAnalysis ?? null);
+  const [cloudinaryResult, setCloudinaryResult] = useState<CloudinaryEnhanceResult | null>(null);
   const [advisory, setAdvisory] = useState<string>('');
   const [analyzing, setAnalyzing] = useState(false);
+  const [enhancing, setEnhancing] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const enhancedImg = useMemo(() => {
+    if (!cloudinaryResult?.publicId) {
+      return null;
+    }
+
+    return cld
+      .image(cloudinaryResult.publicId)
+      .adjust(improve())
+      .delivery(format(webp()))
+      .delivery(quality(auto()));
+  }, [cloudinaryResult?.publicId]);
 
   useEffect(() => {
     if (cameraUrl && analysisCache[cameraUrl]) {
@@ -47,6 +89,8 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
       setAnalysis(checkpoint.cameraAnalysis ?? null);
     }
     setAdvisory('');
+    setCloudinaryResult(null);
+    setEnhancing(false);
     setError(null);
   }, [checkpoint.id, checkpoint.cameraAnalysis, cameraUrl, analysisCache]);
 
@@ -127,6 +171,25 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
       setError(message);
     } finally {
       setSpeaking(false);
+    }
+  };
+
+  const runCloudinaryEnhancement = async () => {
+    try {
+      if (!cameraUrl) {
+        setError('No nearby camera available for Cloudinary enhancement.');
+        return;
+      }
+
+      setEnhancing(true);
+      setError(null);
+      const result = await enhanceCamera(cameraUrl, deriveCameraId(cameraUrl));
+      setCloudinaryResult(result);
+    } catch (cloudinaryError) {
+      const message = cloudinaryError instanceof Error ? cloudinaryError.message : 'Cloudinary enhancement failed';
+      setError(message);
+    } finally {
+      setEnhancing(false);
     }
   };
 
@@ -230,11 +293,19 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
         </div>
 
         {cameraUrl ? (
-          <img
-            src={cameraUrl}
-            alt="Highway camera"
-            style={{ width: '100%', height: 170, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }}
-          />
+          enhancedImg ? (
+            <AdvancedImage
+              cldImg={enhancedImg}
+              plugins={[lazyload(), responsive(), placeholder()]}
+              style={{ width: '100%', height: 170, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }}
+            />
+          ) : (
+            <img
+              src={cameraUrl}
+              alt="Highway camera"
+              style={{ width: '100%', height: 170, objectFit: 'cover', borderRadius: 10, border: '1px solid var(--border)' }}
+            />
+          )
         ) : (
           <div
             style={{
@@ -272,6 +343,179 @@ export default function CameraPanel({ checkpoint, onClose, onCheckpointUpdate }:
               ? 'Analyze with AI'
               : 'Analyze Weather with AI'}
         </button>
+
+        <button
+          type="button"
+          onClick={runCloudinaryEnhancement}
+          disabled={enhancing || !cameraUrl}
+          style={{
+            border: '1px solid transparent',
+            borderRadius: 10,
+            background: 'linear-gradient(135deg, #3448C5 0%, #5B8DEF 100%)',
+            color: '#fff',
+            padding: '10px 12px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: enhancing || !cameraUrl ? 'not-allowed' : 'pointer',
+            opacity: enhancing || !cameraUrl ? 0.8 : 1,
+            transition: 'all 0.2s ease'
+          }}
+        >
+          {enhancing ? 'Enhancing with Cloudinary...' : 'Enhance & Second Opinion (Cloudinary)'}
+        </button>
+
+        {cloudinaryResult && cameraUrl && (
+          <div style={{ display: 'grid', gap: 9 }}>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: 0.5 }}>
+              Before / After
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <div
+                style={{
+                  flex: 1,
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  background: 'var(--bg-secondary)'
+                }}
+              >
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)', padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+                  Original (511)
+                </div>
+                <img src={cameraUrl} alt="Original highway camera" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
+              </div>
+
+              <div
+                style={{
+                  flex: 1,
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  background: 'var(--bg-secondary)'
+                }}
+              >
+                <div style={{ fontSize: 10, color: 'var(--text-secondary)', padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+                  AI Enhanced (Cloudinary)
+                </div>
+                {enhancedImg ? (
+                  <AdvancedImage
+                    cldImg={enhancedImg}
+                    plugins={[lazyload(), responsive(), placeholder()]}
+                    style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }}
+                  />
+                ) : (
+                  <img src={cloudinaryResult.enhancedUrl} alt="Enhanced highway camera" style={{ width: '100%', height: 140, objectFit: 'cover', display: 'block' }} />
+                )}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: 0.5 }}>
+              Cloudinary AI Vision
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+              <div style={{ display: 'grid', gap: 3 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Surface</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {cloudinaryResult.vision.road_surface}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gap: 3 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Visibility</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {cloudinaryResult.vision.visibility}
+                </span>
+              </div>
+              <div style={{ display: 'grid', gap: 3 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Snow Cover</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  {cloudinaryResult.vision.snow_coverage_percent}%
+                </span>
+              </div>
+            </div>
+
+            {cloudinaryResult.vision.hazards.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {cloudinaryResult.vision.hazards.map((hazard) => (
+                  <span
+                    key={hazard}
+                    style={{
+                      background: 'rgba(74,158,255,0.15)',
+                      color: 'var(--accent)',
+                      borderRadius: 999,
+                      padding: '3px 8px',
+                      fontSize: 10,
+                      fontWeight: 700
+                    }}
+                  >
+                    {hazard}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {analysis && (
+              <div
+                style={{
+                  border: '1px solid var(--border)',
+                  borderRadius: 10,
+                  background: 'var(--bg-secondary)',
+                  padding: 9,
+                  display: 'grid',
+                  gap: 7
+                }}
+              >
+                <div style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: 0.5 }}>
+                  Dual AI Consensus
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color:
+                      analysis.road_surface.toLowerCase() === cloudinaryResult.vision.road_surface.toLowerCase()
+                        ? 'var(--green)'
+                        : 'var(--orange)'
+                  }}
+                >
+                  {analysis.road_surface.toLowerCase() === cloudinaryResult.vision.road_surface.toLowerCase()
+                    ? '✓ Both AIs agree'
+                    : `⚠ Gemini: ${analysis.road_surface} | Cloudinary: ${cloudinaryResult.vision.road_surface}`}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color:
+                      analysis.visibility.toLowerCase() === cloudinaryResult.vision.visibility.toLowerCase()
+                        ? 'var(--green)'
+                        : 'var(--orange)'
+                  }}
+                >
+                  {analysis.visibility.toLowerCase() === cloudinaryResult.vision.visibility.toLowerCase()
+                    ? '✓ Both AIs agree'
+                    : `⚠ Gemini: ${analysis.visibility} | Cloudinary: ${cloudinaryResult.vision.visibility}`}
+                </div>
+                <div
+                  style={{
+                    fontSize: 12,
+                    color:
+                      Math.abs(
+                        Number(analysis.snow_coverage_percent) -
+                          Number(cloudinaryResult.vision.snow_coverage_percent)
+                      ) <= 15
+                        ? 'var(--green)'
+                        : 'var(--orange)'
+                  }}
+                >
+                  {Math.abs(
+                    Number(analysis.snow_coverage_percent) -
+                      Number(cloudinaryResult.vision.snow_coverage_percent)
+                  ) <= 15
+                    ? '✓ Both AIs agree'
+                    : `⚠ Gemini: ${analysis.snow_coverage_percent}% | Cloudinary: ${cloudinaryResult.vision.snow_coverage_percent}%`}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {analysis && (
           <div style={{ display: 'grid', gap: 8, marginTop: 2 }}>
